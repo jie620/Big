@@ -1,0 +1,10 @@
+<library path="edgepick_hardware">
+  <class
+    name="edgepick_hardware/MockSystemInterface"
+    type="edgepick_hardware::MockSystemInterface"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Mock ros2_control system for EdgePick DOFBOT command validation and controller-chain tests.
+    </description>
+  </class>
+</library>

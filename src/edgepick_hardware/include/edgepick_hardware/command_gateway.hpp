@@ -20,6 +20,8 @@ enum class CommandStatus
   kTransportError,
 };
 
+// Tunable safety policy for the command gate.
+// The gateway validates commands before any transport can touch hardware.
 struct GatewayConfig
 {
   JointLimits joint_limits{};
@@ -29,6 +31,8 @@ struct GatewayConfig
   double duplicate_epsilon_deg{0.1};
 };
 
+// Counters are intentionally small and transport-agnostic so tests, diagnostics,
+// and future I2C backends can all report the same command-path health.
 struct GatewayStatistics
 {
   std::size_t attempted{0};
@@ -37,6 +41,9 @@ struct GatewayStatistics
   std::size_t transport_failures{0};
 };
 
+// Single entry point for outgoing joint commands.
+// Callers submit desired servo-space angles; this class enforces limits,
+// rate control, duplicate suppression, and transport error accounting.
 class CommandGateway
 {
 public:

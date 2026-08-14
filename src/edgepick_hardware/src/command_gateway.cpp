@@ -16,6 +16,8 @@ CommandStatus CommandGateway::submit(
 {
   ++statistics_.attempted;
 
+  // Keep all safety checks ahead of the transport write. This makes mock,
+  // test, and future real-I2C paths share the same rejection behavior.
   if (!has_valid_angles(command)) {
     ++statistics_.rejected;
     return CommandStatus::kInvalidJointAngle;
@@ -28,6 +30,8 @@ CommandStatus CommandGateway::submit(
     ++statistics_.rejected;
     return CommandStatus::kDuplicateSuppressed;
   }
+  // Rate limiting is evaluated after duplicate suppression so repeated stable
+  // controller outputs do not look like timing failures.
   if (last_accepted_at_.has_value() && now - *last_accepted_at_ < config_.min_command_interval) {
     ++statistics_.rejected;
     return CommandStatus::kRateLimited;
@@ -76,6 +80,7 @@ bool CommandGateway::is_duplicate(const JointCommand & command) const
   if (command.motion_time != last_accepted_command_->motion_time) {
     return false;
   }
+  // Small controller jitter should not produce redundant bus traffic.
   for (std::size_t index = 0; index < kJointCount; ++index) {
     if (std::abs(command.angles_deg[index] - last_accepted_command_->angles_deg[index]) >
       config_.duplicate_epsilon_deg)
