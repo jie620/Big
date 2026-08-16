@@ -58,6 +58,34 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 补充记录：为 `CommandGateway` 和 `MockSystemInterface` 增加模块级注释，明确安全门顺序、mock 状态更新、弧度到舵机角度转换和不触碰真实 I2C 的边界。后续代码也按“解释模块意图和关键边界，不逐行复述代码”的原则添加注释。
 
+### 阶段 3：EdgePick mock bringup
+
+当前阶段：新增 `edgepick_bringup`，提供 EdgePick 自己的 xacro、controller yaml 和 launch，让 controller manager、MoveIt 与 RViz 使用 `edgepick_hardware/MockSystemInterface`。该阶段仍不连接真实机械臂。
+
+完成内容：新增 mock control launch、MoveIt mock launch、EdgePick xacro 覆盖层、controller 配置、配置测试、ADR 0003 和 mock 链路说明。
+
+结构反思：阶段 3 把启动编排从 `edgepick_hardware` 中拆出来是正确的；硬件包只负责安全边界，bringup 包只负责把 vendor 运行资源和 EdgePick 自研接口连接起来。
+
+验证记录：`edgepick_mock_control.launch.py` 短时启动成功，`EdgePickMockSystem` 完成 initialize/configure/activate，`joint_state_broadcaster`、`arm_group_controller`、`grip_group_controller` 均 loaded/configured/activated。`edgepick_moveit_mock.launch.py use_rviz:=false` 短时启动成功，`move_group` 加载 `DOFBOT_Pro-V24` robot model 并监听 `joint_states`。当前沙箱会报 DDS UDP socket 权限警告，属于受限环境限制；真实桌面终端应继续验证 RViz 执行路径。
+
+### 阶段 4：抓取任务状态机核心
+
+当前阶段：新增 `edgepick_task`，先实现无 ROS 依赖的 C++ 抓取任务状态机，并补充 RViz mock 验证手册。
+
+完成内容：实现 `GraspStateMachine` 的状态、事件、失败码、恢复预算、超时、取消和重置；新增状态机测试、ADR 0004、状态机文档和 RViz mock 验证 runbook。
+
+结构反思：阶段 4 继续保持分层：`edgepick_task` 只管任务决策，不直接调用 MoveIt 或硬件；后续 ROS 节点负责把感知、MoveIt 和验证结果翻译成状态机事件。
+
+### 阶段 5：ROS 2 task node 与 diagnostics
+
+当前阶段：`edgepick_task` 已从纯 C++ 状态机推进到 ROS 2 节点。新增 `task_node` 订阅 `/edgepick/task/event`，发布 `/edgepick/task/state`、`/edgepick/task/failure` 和 `/diagnostics`，让 mock 感知、规划、执行和验证组件可以先用稳定字符串事件驱动任务流程。
+
+完成内容：新增事件字符串解析与状态快照工具、ROS 2 task node、task launch、事件 IO 测试、bringup launch 测试、ADR 0005 和 task node topic 文档。该阶段仍不调用 MoveIt action，也不连接真实 I2C。
+
+结构反思：阶段 5 没有让状态机直接依赖相机、MoveIt 或硬件，而是先固定 ROS 边界和 diagnostics 面。这样后续接入真实规划/执行结果时，只需要把外部结果翻译成同一组 `TaskEvent`。
+
+验证记录：2026-08-16 构建 `edgepick_hardware`、`edgepick_bringup`、`edgepick_task` 通过；测试结果为 36 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_task` 可识别 `edgepick_task task_node`。`edgepick_task_mock.launch.py --show-args` 在 `ROS_LOG_DIR=/tmp/edgepick_ros_logs` 下通过；短时启动能创建 `task_node` 进程，但当前沙箱仍会因 DDS UDP socket 权限限制报错，真实桌面终端需复验 topic 通信。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -65,11 +93,12 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 ```bash
 cd /home/jetson/Codex_Projects/Big
 source /opt/ros/humble/setup.bash
-colcon build --base-paths src --packages-select edgepick_hardware
-colcon test --base-paths src --packages-select edgepick_hardware
-colcon test-result --all --verbose
+source /home/jetson/dofbot_pro_ws/install/setup.bash
+colcon build --base-paths src --packages-select edgepick_hardware edgepick_bringup edgepick_task
+colcon test --base-paths src --packages-select edgepick_hardware edgepick_bringup edgepick_task
+colcon test-result --test-result-base build --all --verbose
 ```
 
 ## 下一步目标
 
-阶段 3：创建 `edgepick_bringup`，提供 EdgePick 自己的 xacro、controllers yaml 和 launch，让现有 MoveIt 配置先在 RViz 中通过 `edgepick_hardware/MockSystemInterface` 运行。真实 I2C 适配器不在当前阶段实施。
+阶段 6：新增 mock 任务闭环适配层，把 mock 感知、规划、执行和验证结果自动转换为 `TaskEvent`，形成可 rosbag 记录的完整抓取流程；仍不接真实 I2C。

@@ -1,0 +1,9 @@
+# Default initial positions for the EdgePick mock ros2_control system.
+# Values stay in ROS/MoveIt radians; MockSystemInterface handles servo-degree mapping.
+initial_positions:
+  Arm1_Joint: 0.0
+  Arm2_Joint: 0.0
+  Arm3_Joint: 0.0
+  Arm4_Joint: 0.0
+  Arm5_Joint: 0.0
+  grip_joint: 0.0

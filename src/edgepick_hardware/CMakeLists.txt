@@ -10,7 +10,7 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} SHARED
   src/command_gateway.cpp
   src/mock_system_interface.cpp
   src/mock_transport.cpp
@@ -49,6 +49,13 @@ if(BUILD_TESTING)
   ament_add_gtest(mock_system_interface_test test/mock_system_interface_test.cpp)
   target_link_libraries(mock_system_interface_test ${PROJECT_NAME})
   ament_target_dependencies(mock_system_interface_test hardware_interface rclcpp)
+
+  ament_add_gtest(plugin_loading_test test/plugin_loading_test.cpp
+    APPEND_ENV AMENT_PREFIX_PATH=${CMAKE_INSTALL_PREFIX}
+    APPEND_LIBRARY_DIRS ${CMAKE_INSTALL_PREFIX}/lib
+  )
+  target_link_libraries(plugin_loading_test ${PROJECT_NAME})
+  ament_target_dependencies(plugin_loading_test hardware_interface pluginlib)
 endif()
 
 ament_export_dependencies(hardware_interface pluginlib rclcpp)

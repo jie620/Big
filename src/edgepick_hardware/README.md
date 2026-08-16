@@ -36,6 +36,8 @@ EdgePick 的硬件边界包。它目前只提供可测试的 mock 链路，不�
 
 补充记录：已为 `command_gateway` 和 `mock_system_interface` 增加模块级注释，说明命令校验顺序、限频/重复抑制意图、mock `read/write` 行为、ros2_control handle 存储生命周期和弧度到舵机角度映射风险。
 
+阶段 3 修正：bringup 冒烟测试发现 pluginlib 需要加载动态库，`edgepick_hardware` 已改为 `SHARED` 库，并新增 `plugin_loading_test.cpp`，确保 `edgepick_hardware/MockSystemInterface` 能通过 pluginlib 实例化。
+
 ## 下一步目标
 
 阶段 3：新增 `edgepick_bringup`，生成使用 `edgepick_hardware/MockSystemInterface` 的 xacro/launch/config，让 MoveIt 和 controller manager 在 RViz 中通过 EdgePick 自己的 mock 硬件接口跑通。

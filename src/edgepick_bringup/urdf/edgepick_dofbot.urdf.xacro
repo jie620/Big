@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="DOFBOT_Pro-V24">
+  <xacro:arg name="initial_positions_file" default="$(find edgepick_bringup)/config/initial_positions.yaml"/>
+
+  <!-- Vendor geometry stays external; this package only replaces the ros2_control hardware plugin. -->
+  <xacro:include filename="$(find dofbot_pro_description)/urdf/DOFBOT_Pro-V24.urdf"/>
+  <xacro:include filename="edgepick_dofbot.ros2_control.xacro"/>
+
+  <xacro:edgepick_dofbot_ros2_control
+    name="EdgePickMockSystem"
+    initial_positions_file="$(arg initial_positions_file)"/>
+</robot>
