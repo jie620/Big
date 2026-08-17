@@ -11,6 +11,7 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `launch/edgepick_mock_control.launch.py`：只启动 robot_state_publisher、controller manager 和控制器 spawner。
 - `launch/edgepick_moveit_mock.launch.py`：启动 MoveIt、RViz 和 EdgePick mock ros2_control 链路。
 - `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
+- `launch/edgepick_detection_perception_mock.launch.py`：启动 mock detector 和检测框驱动的 RGB-D 候选点节点。
 - `launch/edgepick_rgbd_perception.launch.py`：启动 RGB-D 目标候选点基础节点。
 - `launch/edgepick_task_mock.launch.py`：启动 `edgepick_task/task_node`，用于手动或 mock 节点发布任务事件。
 - `launch/edgepick_task_closed_loop.launch.py`：同时启动 task node 和 mock 任务驱动节点，自动跑任务事件闭环。
@@ -61,6 +62,12 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_
 
 ```bash
 ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_rgbd_perception.launch.py
+```
+
+验证检测框驱动的 RGB-D 候选点链路：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detection_perception_mock.launch.py
 ```
 
 ## 阶段记录
@@ -117,6 +124,18 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_rgbd_pe
 
 验证记录：`bringup_config_test` 当前覆盖 7 项配置检查；短时启动可创建 RGB-D 候选点节点并等待相机 topic。
 
+补充验证记录：2026-08-17 根据真实终端回传，DaBai DCW2 相机驱动已发布 `/camera/depth/image_raw` 与 `/camera/depth/camera_info`，depth image 约 10 Hz。使用 `ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_rgbd_perception.launch.py` 可启动 `rgbd_target_candidate_node`，节点等待的默认 topic 与相机实际 topic 一致。
+
+### 阶段 9：检测框驱动的感知 launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_detection_perception_mock.launch.py`，把 `mock_detector_node` 与 `detected_target_candidate_node` 接到同一条检测 topic。
+
+完成内容：launch 暴露目标类别、标签、置信度阈值、mock 检测框中心、depth topic 和 camera info topic。默认仍只读相机数据，不访问真实 `/dev/i2c-7`，不会移动机械臂。
+
+结构反思：bringup 只负责节点组合，不把检测选择逻辑写进 launch；后续真实 TensorRT detector 可以替换 `mock_detector_node`，保留 `/edgepick/perception/detections` 和目标点输出契约。
+
+验证记录：`bringup_config_test` 当前覆盖 8 项配置检查，新增检测感知 mock launch 检查。`edgepick_detection_perception_mock.launch.py --show-args` 通过；短时启动可创建 `mock_detector_node` 和 `detected_target_candidate_node`。沙箱 DDS UDP socket 权限警告不作为真实桌面终端失败结论。
+
 ## 下一步目标
 
-阶段 9：新增目标检测/TensorRT 推理启动入口，让检测节点、感知基础节点与任务链路逐步对接。
+阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。

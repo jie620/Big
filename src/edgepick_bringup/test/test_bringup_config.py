@@ -114,3 +114,16 @@ def test_rgbd_perception_launch_starts_target_candidate_node():
     assert "/edgepick/perception/target_point" in launch_text
     assert "/edgepick/task/event" in launch_text
     assert 'DeclareLaunchArgument("target_pixel_u", default_value="-1")' in launch_text
+
+
+def test_detection_perception_mock_launch_connects_detector_to_rgbd_projection():
+    launch_file = package_source_dir() / "launch" / "edgepick_detection_perception_mock.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="mock_detector_node"' in launch_text
+    assert 'executable="detected_target_candidate_node"' in launch_text
+    assert "/edgepick/perception/detections" in launch_text
+    assert "/edgepick/perception/target_point" in launch_text
+    assert "/edgepick/task/event" in launch_text
+    assert 'DeclareLaunchArgument("target_label", default_value="target")' in launch_text
+    assert 'DeclareLaunchArgument("min_detection_score", default_value="0.50")' in launch_text

@@ -6,6 +6,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(edgepick_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -13,6 +14,7 @@ find_package(std_msgs REQUIRED)
 
 add_library(${PROJECT_NAME}
   src/rgbd_projection.cpp
+  src/target_detection_selection.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME}
@@ -35,6 +37,26 @@ ament_target_dependencies(rgbd_target_candidate_node
   std_msgs
 )
 
+add_executable(detected_target_candidate_node
+  src/detected_target_candidate_node.cpp
+)
+target_link_libraries(detected_target_candidate_node ${PROJECT_NAME})
+ament_target_dependencies(detected_target_candidate_node
+  edgepick_interfaces
+  geometry_msgs
+  rclcpp
+  sensor_msgs
+  std_msgs
+)
+
+add_executable(mock_detector_node
+  src/mock_detector_node.cpp
+)
+ament_target_dependencies(mock_detector_node
+  edgepick_interfaces
+  rclcpp
+)
+
 install(
   DIRECTORY include/
   DESTINATION include
@@ -47,7 +69,10 @@ install(
   RUNTIME DESTINATION bin
 )
 install(
-  TARGETS rgbd_target_candidate_node
+  TARGETS
+    detected_target_candidate_node
+    mock_detector_node
+    rgbd_target_candidate_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -55,9 +80,12 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(rgbd_projection_test test/rgbd_projection_test.cpp)
   target_link_libraries(rgbd_projection_test ${PROJECT_NAME})
+
+  ament_add_gtest(target_detection_selection_test test/target_detection_selection_test.cpp)
+  target_link_libraries(target_detection_selection_test ${PROJECT_NAME})
 endif()
 
-ament_export_dependencies(sensor_msgs)
+ament_export_dependencies(edgepick_interfaces sensor_msgs)
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_package()

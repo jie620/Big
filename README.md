@@ -106,6 +106,28 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 验证记录：2026-08-16 构建三包通过；自动化测试为 52 tests、0 errors、0 failures、0 skipped。`edgepick_moveit_action_mock.launch.py` 短时启动创建 `task_node`、`mock_task_driver_node` 和 `moveit_action_adapter_node`，其中 `plan_succeeded` 与 `execution_succeeded` 由 action 适配节点发布，最终进入 `succeeded`。沙箱仍有 DDS UDP socket 权限警告，真实终端需继续补 topic/rosbag 证据。
 
+### 阶段 8：RGB-D 感知基础层
+
+当前阶段：新增 `edgepick_perception` 包和 `edgepick_rgbd_perception.launch.py`，先把 Orbbec depth image、camera info 和目标候选点 topic 接成最小可测链路。
+
+完成内容：实现 CameraInfo 内参解析、`16UC1`/`32FC1` 深度读取、pinhole 三维投影、`/edgepick/perception/target_point` 发布，以及可选 `/edgepick/task/event` 的 `target_acquired`/`target_lost` 事件发布。
+
+结构反思：阶段 8 继续保持“感知基础数学”和“目标检测模型”分离。当前节点只负责从 RGB-D 数据得到相机坐标系下的候选点，不构造 MoveIt 目标、不做手眼标定、不访问真实 `/dev/i2c-7`。
+
+验证记录：2026-08-16 四包构建和测试通过；自动化测试为 61 tests、0 errors、0 failures、0 skipped。`edgepick_rgbd_perception.launch.py --show-args` 通过，短时启动可创建 RGB-D 候选点节点并等待 `/camera/depth/image_raw` 与 `/camera/depth/camera_info`。
+
+补充验证记录：2026-08-17 根据真实终端回传，Orbbec DaBai DCW2 已发布 `/camera/color/image_raw`、`/camera/depth/image_raw`、`/camera/depth/camera_info`、`/camera/depth/points`、`/camera/depth_registered/points` 和 `/camera/ir/image_raw` 等 topic；`/camera/depth/image_raw` 约 10 Hz，`/camera/depth/camera_info` 返回 640x480 内参，`fx≈478.65`、`fy≈478.39`、`cx≈319.88`、`cy≈236.72`。阶段 8 感知 launch 已在真机终端启动，并等待同一组 depth/camera_info topic。
+
+### 阶段 9：检测框驱动的目标候选点
+
+当前阶段：新增 `edgepick_interfaces`、检测框选择逻辑、`mock_detector_node`、`detected_target_candidate_node` 和 `edgepick_detection_perception_mock.launch.py`。目标像素现在可以来自检测框中心，而不再只能使用固定中心点。
+
+完成内容：定义 `TargetDetectionArray` 消息，按类别、标签和置信度选择目标检测框，复用阶段 8 的深度采样和 pinhole 投影发布 `/edgepick/perception/target_point`，并保留 `/edgepick/task/event` 的 `target_acquired`/`target_lost` 边界。
+
+结构反思：阶段 9 没有直接把 TensorRT runtime、模型预处理和深度投影写成一个大节点，而是先固定检测结果契约和 mock detector。后续真实 YOLO/TensorRT 节点只需替换 detection publisher，不需要改任务状态机、MoveIt action 适配器或硬件安全边界。
+
+验证记录：2026-08-17 五包构建通过；自动化测试更新为 68 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_perception` 可识别 `detected_target_candidate_node`、`mock_detector_node` 和 `rgbd_target_candidate_node`；`edgepick_detection_perception_mock.launch.py --show-args` 通过。短时启动可创建 mock detector 与 detected target candidate 两个节点；当前沙箱仍有 DDS UDP socket 权限警告，真实终端需继续补 `/edgepick/perception/detections` 和 `/edgepick/perception/target_point` echo 证据。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -114,11 +136,11 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 cd /home/jetson/Codex_Projects/Big
 source /opt/ros/humble/setup.bash
 source /home/jetson/dofbot_pro_ws/install/setup.bash
-colcon build --base-paths src --packages-select edgepick_hardware edgepick_bringup edgepick_task
-colcon test --base-paths src --packages-select edgepick_hardware edgepick_bringup edgepick_task
+colcon build --base-paths src --packages-select edgepick_interfaces edgepick_hardware edgepick_bringup edgepick_task edgepick_perception
+colcon test --base-paths src --packages-select edgepick_interfaces edgepick_hardware edgepick_bringup edgepick_task edgepick_perception
 colcon test-result --test-result-base build --all --verbose
 ```
 
 ## 下一步目标
 
-阶段 8：新增 RGB-D 感知基础层，先接 Orbbec 图像/深度 topic 与目标三维点转换；仍默认使用 mock 任务链和 mock 硬件，不接真实 I2C。
+阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。

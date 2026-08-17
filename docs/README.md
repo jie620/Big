@@ -82,6 +82,18 @@
 
 验证记录：阶段 8 实现后自动化测试更新为 61 tests、0 errors、0 failures、0 skipped。`edgepick_rgbd_perception.launch.py` 可启动 RGB-D 候选点节点并等待相机 topic。
 
+补充验证记录：2026-08-17 根据真实终端回传，DaBai DCW2 相机 topic 已确认存在：`/camera/color/image_raw`、`/camera/depth/image_raw`、`/camera/depth/camera_info`、`/camera/depth/points`、`/camera/depth_registered/points` 和 `/camera/ir/image_raw`。`/camera/depth/image_raw` 发布频率约 10 Hz，`/camera/depth/camera_info` 返回 640x480 内参；阶段 8 launch 已能启动 `rgbd_target_candidate_node` 并等待这些 topic。
+
+### 阶段 9：检测框驱动的目标候选点
+
+当前阶段：新增 ADR 0009 和 `docs/perception/detection_target_candidate.md`，记录检测消息、mock detector、检测框中心像素和 RGB-D 投影之间的接口。
+
+完成内容：文档明确当前阶段先固定 `TargetDetectionArray` 和 mock 验证链路，真实 YOLO/TensorRT 模型推理延后到阶段 10。
+
+结构反思：文档现在能区分“检测结果契约”和“真实模型部署”。这能避免后续把 TensorRT、深度图、任务事件和硬件动作混成不可测大节点。
+
+验证记录：阶段 9 实现后自动化测试更新为 68 tests、0 errors、0 failures、0 skipped。`edgepick_detection_perception_mock.launch.py --show-args` 通过，短时启动可创建 mock detector 与 detected target candidate 节点。
+
 ## 下一步目标
 
-阶段 9：记录目标检测/TensorRT 推理层设计，明确检测框中心、深度采样、模型格式和延迟统计接口。
+阶段 10：记录真实模型推理或 rosbag 回放方案，明确输入预处理、输出解析、延迟统计和稳定性验证。

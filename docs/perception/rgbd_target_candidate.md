@@ -58,10 +58,17 @@ z = depth_m
 - 短时启动可创建 `rgbd_target_candidate_node` 并等待相机 topic。
 - 沙箱仍有 DDS UDP socket 权限警告，真实桌面终端需使用 Orbbec topic 复验。
 
+2026-08-17：
+
+- 真实终端确认 DaBai DCW2 发布 `/camera/color/image_raw`、`/camera/depth/image_raw`、`/camera/depth/camera_info`、`/camera/depth/points`、`/camera/depth_registered/points` 和 `/camera/ir/image_raw` 等 topic。
+- `/camera/depth/image_raw` 约 10 Hz；`/camera/depth/camera_info` 返回 640x480 内参，`fx≈478.65`、`fy≈478.39`、`cx≈319.88`、`cy≈236.72`。
+- `edgepick_rgbd_perception.launch.py` 已在本仓库 install 环境中启动 `rgbd_target_candidate_node`，等待的默认 topic 与相机实际 topic 一致。
+- 仍需补最后一条输出验证：`ros2 topic echo /edgepick/perception/target_point`；如果没有输出，先检查 `/camera/depth/image_raw` 的 `encoding` 是否为当前支持的 `16UC1` 或 `32FC1`。
+
 ## 结构反思
 
 这一步不是目标检测，也不是手眼标定。它只把 RGB-D 数据变成相机坐标系下的候选点，故意保持薄而可测。这样下一步加 YOLO/TensorRT 时，如果候选点异常，可以先判断问题来自检测像素还是深度投影。
 
 ## 下一步
 
-阶段 9：新增目标检测/TensorRT 推理层，让目标像素来自检测框中心、分割质心或其他检测结果。
+阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。

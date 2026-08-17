@@ -4,7 +4,8 @@
 
 - `edgepick_hardware`：C++ I2C 传输抽象、mock 后端和 ros2_control `SystemInterface`。当前已完成命令网关与 mock 系统接口。
 - `edgepick_bringup`：生命周期管理、参数和启动编排。当前已完成 mock control 与 MoveIt mock launch。
-- `edgepick_perception`：RGB-D 相机内参、深度采样和目标候选点。当前已完成像素+深度到三维点的基础转换。
+- `edgepick_interfaces`：EdgePick 自定义 ROS 2 消息。当前已完成目标检测结果消息。
+- `edgepick_perception`：RGB-D 相机内参、深度采样、目标检测选择和目标候选点。当前已完成检测框中心到三维点的基础链路。
 - `edgepick_task`：抓取任务状态机、超时、恢复策略、ROS 2 task node、mock 闭环驱动和 MoveIt action 适配层。当前已完成规划/执行 action 结果映射。
 
 任何真实 I2C 写入必须经 `edgepick_hardware`，不得在感知或任务节点中直接调用 `Arm_Lib`。
@@ -89,6 +90,18 @@
 
 验证记录：`rgbd_projection_test` 覆盖 7 个感知基础用例，四包测试总数更新为 61 个且全部通过。
 
+补充验证记录：2026-08-17 根据真实终端回传，DaBai DCW2 已发布 color/depth/IR 图像、depth camera_info 和点云 topic；`/camera/depth/image_raw` 约 10 Hz，`/camera/depth/camera_info` 返回有效 640x480 内参。`edgepick_rgbd_perception.launch.py` 已能在本仓库 install 环境中启动候选点节点并等待 `/camera/depth/image_raw` 与 `/camera/depth/camera_info`。
+
+### 阶段 9：检测框驱动的目标候选点
+
+当前阶段：新增 `src/edgepick_interfaces`，并扩展 `src/edgepick_perception` 与 `src/edgepick_bringup`，让 mock 检测结果可以驱动 RGB-D 目标点发布。
+
+完成内容：`TargetDetectionArray` 定义检测结果；`target_detection_selection` 负责选择目标框；`detected_target_candidate_node` 负责把检测框中心投影成三维候选点；`mock_detector_node` 负责无模型验证。
+
+结构反思：`src/` 的分层继续保持清楚：接口包只放消息，perception 包放感知逻辑，bringup 包放启动组合，硬件包仍独占真实控制边界。
+
+验证记录：五包构建通过，测试总数更新为 68 个且全部通过。`edgepick_perception` 现在暴露 `detected_target_candidate_node`、`mock_detector_node` 和 `rgbd_target_candidate_node` 三个可执行入口。
+
 ## 下一步目标
 
-阶段 9：新增目标检测/TensorRT 推理层，让目标像素来自检测结果，而不是固定中心点。
+阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。

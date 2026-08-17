@@ -25,6 +25,8 @@
 
 阶段 8：RGB-D 感知基础层已实现。
 
+补充验证记录：2026-08-17 真实终端已确认 DaBai DCW2 的 depth image、depth camera_info、color image、IR image 和点云 topic 存在；depth image 约 10 Hz，depth camera_info 返回有效 640x480 内参。`edgepick_rgbd_perception.launch.py` 已启动候选点节点并等待相机 topic，阶段 8 的剩余验证是确认 `/edgepick/perception/target_point` 实际输出。
+
 ## 下一步
 
 阶段 9：新增目标检测/TensorRT 推理层，让目标像素来自检测结果，并开始记录推理延迟。
