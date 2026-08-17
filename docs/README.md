@@ -52,6 +52,36 @@
 
 验证记录：新增文档与实现一起通过 36 个自动化测试；沙箱中 launch 可显示参数并启动进程，但 DDS 网络 socket 受限，真实终端仍需补充 topic pub/echo 截图或日志。
 
+### 阶段 6：mock 任务闭环适配层
+
+当前阶段：新增 ADR 0006 和 `docs/task/mock_task_closed_loop.md`，记录 mock 任务闭环驱动的场景、topic、启动命令和验证方式。
+
+完成内容：把“手动发布事件”升级为“状态门控自动发布事件”，并定义成功路径、感知恢复、规划恢复、执行恢复和验证恢复五个可测试场景。
+
+结构反思：文档现在能说明 EdgePick 的任务层如何从纯逻辑、ROS topic 边界，推进到可自动回放的 mock 闭环，为后续 MoveIt action 接入留出清楚边界。
+
+验证记录：阶段 6 实现后自动化测试更新为 45 tests、0 errors、0 failures、0 skipped。closed-loop launch 的 `success` 场景已在短时启动中自动推进到 `succeeded`；沙箱 DDS UDP 权限警告不作为真实桌面终端失败结论。
+
+### 阶段 7：MoveIt action 适配层
+
+当前阶段：新增 ADR 0007 和 `docs/task/moveit_action_adapter.md`，记录 MoveGroup/ExecuteTrajectory action 结果如何转换为任务事件。
+
+完成内容：文档明确了 Stage 7 的边界：已经具备 action client、action server 可用性检查和 mock action result，但尚未构造真实 MoveIt goal 或发送真实轨迹。
+
+结构反思：文档现在能区分三类东西：任务状态机、mock 感知/验证驱动、MoveIt action 结果适配器。这个边界能防止后续把感知、规划和硬件控制塞进一个大节点。
+
+验证记录：阶段 7 实现后自动化测试更新为 52 tests、0 errors、0 failures、0 skipped。`edgepick_moveit_action_mock.launch.py` 的成功路径已在短时启动中自动推进到 `succeeded`。
+
+### 阶段 8：RGB-D 感知基础层
+
+当前阶段：新增 ADR 0008 和 `docs/perception/rgbd_target_candidate.md`，记录 depth image、camera info、目标候选点和任务事件之间的接口。
+
+完成内容：文档明确了当前只做中心像素/参数像素的深度采样和三维投影，尚未接入 YOLO/TensorRT 检测或手眼标定。
+
+结构反思：文档现在把“感知基础数学”和“目标检测模型”拆开，便于后续先验证深度/内参/坐标，再叠加模型推理。
+
+验证记录：阶段 8 实现后自动化测试更新为 61 tests、0 errors、0 failures、0 skipped。`edgepick_rgbd_perception.launch.py` 可启动 RGB-D 候选点节点并等待相机 topic。
+
 ## 下一步目标
 
-阶段 6：记录 mock 任务闭环适配层设计，并开始沉淀 rosbag/diagnostics 的验证证据。
+阶段 9：记录目标检测/TensorRT 推理层设计，明确检测框中心、深度采样、模型格式和延迟统计接口。

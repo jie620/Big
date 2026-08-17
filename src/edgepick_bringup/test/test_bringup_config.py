@@ -74,3 +74,43 @@ def test_task_mock_launch_starts_task_node_with_topic_contract():
     assert "/edgepick/task/state" in launch_text
     assert "/edgepick/task/failure" in launch_text
     assert "/diagnostics" in launch_text
+
+
+def test_task_closed_loop_launch_starts_task_and_mock_driver():
+    launch_file = package_source_dir() / "launch" / "edgepick_task_closed_loop.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="task_node"' in launch_text
+    assert 'executable="mock_task_driver_node"' in launch_text
+    assert 'DeclareLaunchArgument("scenario", default_value="success")' in launch_text
+    assert "/edgepick/task/event" in launch_text
+    assert "/edgepick/task/state" in launch_text
+    assert "/edgepick/task/failure" in launch_text
+    assert "/diagnostics" in launch_text
+
+
+def test_moveit_action_mock_launch_splits_task_driver_from_action_adapter():
+    launch_file = package_source_dir() / "launch" / "edgepick_moveit_action_mock.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="task_node"' in launch_text
+    assert 'executable="mock_task_driver_node"' in launch_text
+    assert 'executable="moveit_action_adapter_node"' in launch_text
+    assert '"scenario": "moveit_success"' in launch_text
+    assert 'DeclareLaunchArgument("planning_outcome", default_value="success")' in launch_text
+    assert 'DeclareLaunchArgument("execution_outcome", default_value="success")' in launch_text
+    assert "/move_action" in launch_text
+    assert "/execute_trajectory" in launch_text
+
+
+def test_rgbd_perception_launch_starts_target_candidate_node():
+    launch_file = package_source_dir() / "launch" / "edgepick_rgbd_perception.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'package="edgepick_perception"' in launch_text
+    assert 'executable="rgbd_target_candidate_node"' in launch_text
+    assert "/camera/depth/image_raw" in launch_text
+    assert "/camera/depth/camera_info" in launch_text
+    assert "/edgepick/perception/target_point" in launch_text
+    assert "/edgepick/task/event" in launch_text
+    assert 'DeclareLaunchArgument("target_pixel_u", default_value="-1")' in launch_text

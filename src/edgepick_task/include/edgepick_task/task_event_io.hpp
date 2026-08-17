@@ -21,6 +21,7 @@ struct TaskStatusSnapshot
 // String IO is intentionally centralized so ROS topics, logs, CLI examples, and
 // tests all use the same event vocabulary.
 std::optional<TaskEvent> parse_task_event(const std::string & event_name);
+std::optional<TaskState> parse_task_state(const std::string & state_name);
 std::vector<std::string> valid_task_event_names();
 std::string task_status_line(const TaskStatusSnapshot & snapshot);
 TaskStatusSnapshot snapshot_from_machine(const GraspStateMachine & machine);

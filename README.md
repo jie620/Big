@@ -86,6 +86,26 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 验证记录：2026-08-16 构建 `edgepick_hardware`、`edgepick_bringup`、`edgepick_task` 通过；测试结果为 36 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_task` 可识别 `edgepick_task task_node`。`edgepick_task_mock.launch.py --show-args` 在 `ROS_LOG_DIR=/tmp/edgepick_ros_logs` 下通过；短时启动能创建 `task_node` 进程，但当前沙箱仍会因 DDS UDP socket 权限限制报错，真实桌面终端需复验 topic 通信。
 
+### 阶段 6：mock 任务闭环适配层
+
+当前阶段：`edgepick_task` 新增 `MockTaskScript` 和 `mock_task_driver_node`，`edgepick_bringup` 新增 `edgepick_task_closed_loop.launch.py`。现在可以由 mock 驱动节点根据 `/edgepick/task/state` 自动发布下一步 `/edgepick/task/event`，不再只依赖手动 topic pub。
+
+完成内容：新增成功场景和四类一次恢复场景：`success`、`perception_recovery`、`planning_recovery`、`execution_recovery`、`verification_recovery`。mock 驱动按状态门控发布事件，覆盖 mock 感知、规划、执行、验证和恢复适配器的最小闭环。
+
+结构反思：阶段 6 没有把 mock 逻辑写进 `task_node`，而是拆成独立驱动节点和纯 C++ 脚本测试。这样 task node 继续只负责状态机边界，后续接真实 MoveIt action 或感知节点时可以替换 mock 驱动，不需要重写任务核心。
+
+验证记录：2026-08-16 构建三包通过；自动化测试为 45 tests、0 errors、0 failures、0 skipped。新增 `mock_task_script_test` 验证所有 mock 场景能把状态机推进到 `succeeded`。`edgepick_task_closed_loop.launch.py scenario:=success` 短时启动成功创建 `task_node` 和 `mock_task_driver_node`，事件自动推进到 `succeeded`；沙箱仍有 DDS UDP socket 权限警告，真实终端需继续补 rosbag/topic 证据。
+
+### 阶段 7：MoveIt action 适配层
+
+当前阶段：`edgepick_task` 新增 `moveit_action_adapter_node` 和 `MoveItActionEventMapper`，`edgepick_bringup` 新增 `edgepick_moveit_action_mock.launch.py`。规划和执行阶段现在由独立 action 适配节点把 MoveIt-style 结果转换为 `plan_succeeded`、`plan_failed`、`execution_succeeded`、`execution_failed` 或 `timeout`。
+
+完成内容：新增 `moveit_msgs`/`rclcpp_action` 编译依赖、MoveGroup 与 ExecuteTrajectory action client、action outcome 到 `TaskEvent` 的纯逻辑映射、`moveit_success` 场景、mapper 单元测试和 bringup launch 契约测试。默认 `use_mock_action_results:=true`，不会构造真实 MoveIt goal，也不会触碰真实 I2C。
+
+结构反思：阶段 7 把规划/执行结果来源从 mock 脚本中拆出来，形成 `task_node <- event topic <- MoveIt action adapter` 的边界。这样后续真正构造 MoveIt 目标时，只替换 action client 的 goal/result 处理，不需要改状态机或感知/验证驱动。
+
+验证记录：2026-08-16 构建三包通过；自动化测试为 52 tests、0 errors、0 failures、0 skipped。`edgepick_moveit_action_mock.launch.py` 短时启动创建 `task_node`、`mock_task_driver_node` 和 `moveit_action_adapter_node`，其中 `plan_succeeded` 与 `execution_succeeded` 由 action 适配节点发布，最终进入 `succeeded`。沙箱仍有 DDS UDP socket 权限警告，真实终端需继续补 topic/rosbag 证据。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -101,4 +121,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 6：新增 mock 任务闭环适配层，把 mock 感知、规划、执行和验证结果自动转换为 `TaskEvent`，形成可 rosbag 记录的完整抓取流程；仍不接真实 I2C。
+阶段 8：新增 RGB-D 感知基础层，先接 Orbbec 图像/深度 topic 与目标三维点转换；仍默认使用 mock 任务链和 mock 硬件，不接真实 I2C。

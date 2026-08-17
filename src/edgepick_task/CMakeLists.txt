@@ -7,11 +7,15 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(moveit_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 
 add_library(${PROJECT_NAME}
   src/grasp_state_machine.cpp
+  src/mock_task_script.cpp
+  src/moveit_action_event_mapper.cpp
   src/task_event_io.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
@@ -31,6 +35,26 @@ ament_target_dependencies(task_node
   std_msgs
 )
 
+add_executable(mock_task_driver_node
+  src/mock_task_driver_node.cpp
+)
+target_link_libraries(mock_task_driver_node ${PROJECT_NAME})
+ament_target_dependencies(mock_task_driver_node
+  rclcpp
+  std_msgs
+)
+
+add_executable(moveit_action_adapter_node
+  src/moveit_action_adapter_node.cpp
+)
+target_link_libraries(moveit_action_adapter_node ${PROJECT_NAME})
+ament_target_dependencies(moveit_action_adapter_node
+  moveit_msgs
+  rclcpp
+  rclcpp_action
+  std_msgs
+)
+
 install(
   DIRECTORY include/
   DESTINATION include
@@ -43,7 +67,10 @@ install(
   RUNTIME DESTINATION bin
 )
 install(
-  TARGETS task_node
+  TARGETS
+    task_node
+    mock_task_driver_node
+    moveit_action_adapter_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -54,9 +81,15 @@ if(BUILD_TESTING)
 
   ament_add_gtest(task_event_io_test test/task_event_io_test.cpp)
   target_link_libraries(task_event_io_test ${PROJECT_NAME})
+
+  ament_add_gtest(mock_task_script_test test/mock_task_script_test.cpp)
+  target_link_libraries(mock_task_script_test ${PROJECT_NAME})
+
+  ament_add_gtest(moveit_action_event_mapper_test test/moveit_action_event_mapper_test.cpp)
+  target_link_libraries(moveit_action_event_mapper_test ${PROJECT_NAME})
 endif()
 
-ament_export_dependencies(diagnostic_msgs rclcpp std_msgs)
+ament_export_dependencies(diagnostic_msgs moveit_msgs rclcpp rclcpp_action std_msgs)
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_package()

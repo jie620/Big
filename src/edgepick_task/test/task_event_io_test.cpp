@@ -20,6 +20,19 @@ TEST(TaskEventIoTest, RejectsUnknownEventNames)
   EXPECT_FALSE(parse_task_event("").has_value());
 }
 
+TEST(TaskEventIoTest, ParsesKnownStateNames)
+{
+  EXPECT_EQ(parse_task_state("idle"), TaskState::kIdle);
+  EXPECT_EQ(parse_task_state("  RECOVERING "), TaskState::kRecovering);
+  EXPECT_EQ(parse_task_state("succeeded"), TaskState::kSucceeded);
+}
+
+TEST(TaskEventIoTest, RejectsUnknownStateNames)
+{
+  EXPECT_FALSE(parse_task_state("moving_arm").has_value());
+  EXPECT_FALSE(parse_task_state("").has_value());
+}
+
 TEST(TaskEventIoTest, ExposesAllEventNamesForCliHelp)
 {
   const auto names = valid_task_event_names();

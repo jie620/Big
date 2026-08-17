@@ -4,7 +4,8 @@
 
 - `edgepick_hardware`：C++ I2C 传输抽象、mock 后端和 ros2_control `SystemInterface`。当前已完成命令网关与 mock 系统接口。
 - `edgepick_bringup`：生命周期管理、参数和启动编排。当前已完成 mock control 与 MoveIt mock launch。
-- `edgepick_task`：抓取任务状态机、超时、恢复策略和 ROS 2 task node。当前已完成事件 topic 与 diagnostics 输出。
+- `edgepick_perception`：RGB-D 相机内参、深度采样和目标候选点。当前已完成像素+深度到三维点的基础转换。
+- `edgepick_task`：抓取任务状态机、超时、恢复策略、ROS 2 task node、mock 闭环驱动和 MoveIt action 适配层。当前已完成规划/执行 action 结果映射。
 
 任何真实 I2C 写入必须经 `edgepick_hardware`，不得在感知或任务节点中直接调用 `Arm_Lib`。
 
@@ -58,6 +59,36 @@
 
 验证记录：三包构建和测试通过，`edgepick_task` 暴露 `task_node` 可执行入口，`edgepick_bringup` 配置测试已覆盖 `edgepick_task_mock.launch.py` 的 topic 契约。
 
+### 阶段 6：mock 任务闭环适配层
+
+当前阶段：`src/edgepick_task` 新增 mock 场景脚本和 `mock_task_driver_node`，`src/edgepick_bringup` 新增闭环启动入口。
+
+完成内容：mock 驱动根据状态机当前状态自动发布下一步事件，支持成功路径和感知/规划/执行/验证的一次失败恢复路径。
+
+结构反思：闭环驱动作为独立节点存在是正确的；它模拟外部模块，不污染状态机本体，也不触碰 `edgepick_hardware` 的硬件安全边界。
+
+验证记录：`mock_task_script_test` 覆盖 5 个场景，三包测试总数更新为 45 个且全部通过。
+
+### 阶段 7：MoveIt action 适配层
+
+当前阶段：`src/edgepick_task` 新增 MoveIt action outcome 映射和 `moveit_action_adapter_node`，`src/edgepick_bringup` 新增 `edgepick_moveit_action_mock.launch.py`。
+
+完成内容：规划/执行阶段不再必须由 `mock_task_driver_node` 直接发布结果；适配节点会根据 `planning`/`executing` 状态发布对应 action 结果事件。
+
+结构反思：`src/edgepick_task` 继续只做任务和 action 结果适配，不构造真实抓取目标，也不接触硬件；真实运动仍被 `edgepick_hardware` 和 mock ros2_control 边界隔离。
+
+验证记录：`moveit_action_event_mapper_test` 覆盖 action outcome 到任务事件的映射，三包测试总数更新为 52 个且全部通过。
+
+### 阶段 8：RGB-D 感知基础层
+
+当前阶段：新增 `src/edgepick_perception`，提供 RGB-D 目标候选点基础链路。
+
+完成内容：实现 CameraInfo 内参解析、深度图像采样、三维点投影、目标点 topic 发布和感知事件发布。
+
+结构反思：新增独立 perception 包是正确的；图像/深度格式和投影数学不进入 `edgepick_task`，也不污染 MoveIt action adapter 或硬件接口。
+
+验证记录：`rgbd_projection_test` 覆盖 7 个感知基础用例，四包测试总数更新为 61 个且全部通过。
+
 ## 下一步目标
 
-阶段 6：新增 mock 任务闭环适配层，让事件不再只靠手动发布，而是由 mock 感知、规划、执行和验证节点自动推进。
+阶段 9：新增目标检测/TensorRT 推理层，让目标像素来自检测结果，而不是固定中心点。

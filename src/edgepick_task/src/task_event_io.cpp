@@ -12,6 +12,7 @@ namespace
 {
 
 using EventNamePair = std::pair<const char *, TaskEvent>;
+using StateNamePair = std::pair<const char *, TaskState>;
 
 constexpr std::array<EventNamePair, 14> kEventNames{{
   {"start_requested", TaskEvent::kStartRequested},
@@ -28,6 +29,18 @@ constexpr std::array<EventNamePair, 14> kEventNames{{
   {"timeout", TaskEvent::kTimeout},
   {"cancel_requested", TaskEvent::kCancelRequested},
   {"reset", TaskEvent::kReset},
+}};
+
+constexpr std::array<StateNamePair, 9> kStateNames{{
+  {"idle", TaskState::kIdle},
+  {"perceiving", TaskState::kPerceiving},
+  {"planning", TaskState::kPlanning},
+  {"executing", TaskState::kExecuting},
+  {"verifying", TaskState::kVerifying},
+  {"recovering", TaskState::kRecovering},
+  {"succeeded", TaskState::kSucceeded},
+  {"failed", TaskState::kFailed},
+  {"canceled", TaskState::kCanceled},
 }};
 
 std::string normalized(std::string value)
@@ -57,6 +70,18 @@ std::optional<TaskEvent> parse_task_event(const std::string & event_name)
     return key == item.first;
   });
   if (match == kEventNames.end()) {
+    return std::nullopt;
+  }
+  return match->second;
+}
+
+std::optional<TaskState> parse_task_state(const std::string & state_name)
+{
+  const std::string key = normalized(state_name);
+  const auto match = std::find_if(kStateNames.begin(), kStateNames.end(), [&](const auto & item) {
+    return key == item.first;
+  });
+  if (match == kStateNames.end()) {
     return std::nullopt;
   }
   return match->second;

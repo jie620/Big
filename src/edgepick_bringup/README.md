@@ -10,7 +10,10 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `config/initial_positions.yaml`：mock 控制链的初始关节位置。
 - `launch/edgepick_mock_control.launch.py`：只启动 robot_state_publisher、controller manager 和控制器 spawner。
 - `launch/edgepick_moveit_mock.launch.py`：启动 MoveIt、RViz 和 EdgePick mock ros2_control 链路。
+- `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
+- `launch/edgepick_rgbd_perception.launch.py`：启动 RGB-D 目标候选点基础节点。
 - `launch/edgepick_task_mock.launch.py`：启动 `edgepick_task/task_node`，用于手动或 mock 节点发布任务事件。
+- `launch/edgepick_task_closed_loop.launch.py`：同时启动 task node 和 mock 任务驱动节点，自动跑任务事件闭环。
 - `test/test_bringup_config.py`：验证 xacro、controller yaml 和 MoveIt launch 关键连接点。
 
 ## 使用
@@ -42,6 +45,24 @@ ros2 launch edgepick_bringup edgepick_moveit_mock.launch.py
 ros2 launch edgepick_bringup edgepick_task_mock.launch.py
 ```
 
+验证自动 mock 任务闭环：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_task_closed_loop.launch.py scenario:=success
+```
+
+验证 MoveIt action mock 适配链：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_action_mock.launch.py
+```
+
+验证 RGB-D 感知基础节点：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_rgbd_perception.launch.py
+```
+
 ## 阶段记录
 
 记录规则：阶段记录只追加，不覆盖旧阶段；每次任务完成后只更新“下一步目标”。
@@ -66,6 +87,36 @@ ros2 launch edgepick_bringup edgepick_task_mock.launch.py
 
 验证记录：`bringup_config_test` 当前覆盖 4 项配置检查，其中包含 `edgepick_task_mock.launch.py` 的节点和 topic 契约。
 
+### 阶段 6：mock 任务闭环 launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_task_closed_loop.launch.py`，一键启动 `task_node` 和 `mock_task_driver_node`。
+
+完成内容：launch 暴露 `scenario`、`event_period_ms`、`initial_delay_ms` 和 `max_recovery_attempts` 参数，默认跑 `success` 场景。
+
+结构反思：组合 launch 属于启动编排层，仍不把 mock 场景逻辑写进 bringup；bringup 只负责把节点和 topic 契约接起来。
+
+验证记录：`bringup_config_test` 当前覆盖 5 项配置检查，新增闭环 launch 的节点和 topic 契约检查。`edgepick_task_closed_loop.launch.py scenario:=success` 短时启动可创建两个节点并完成 `succeeded` 路径；沙箱 DDS UDP 权限警告需在真实终端复验。
+
+### 阶段 7：MoveIt action mock launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_moveit_action_mock.launch.py`，一键启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
+
+完成内容：launch 使用 `moveit_success` 场景，让 mock 驱动只发布 `start_requested`、`target_acquired` 和 `verification_succeeded`；规划/执行结果由 `moveit_action_adapter_node` 发布。
+
+结构反思：bringup 仍只负责组合节点和参数，不承载 action 映射逻辑。MoveIt action adapter 位于 `edgepick_task`，便于后续替换成真实 MoveIt goal/result 处理。
+
+验证记录：`bringup_config_test` 当前覆盖 6 项配置检查，新增 MoveIt action mock launch 检查；短时启动可创建三个节点并完成 `succeeded` 路径。
+
+### 阶段 8：RGB-D 感知基础 launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_rgbd_perception.launch.py`，启动 `edgepick_perception/rgbd_target_candidate_node`。
+
+完成内容：launch 暴露 depth topic、camera info topic、目标像素、深度范围和事件发布开关，默认等待 `/camera/depth/image_raw` 与 `/camera/depth/camera_info`。
+
+结构反思：bringup 继续只做启动编排，感知算法留在 `edgepick_perception`，任务状态仍由 `edgepick_task` 管理。
+
+验证记录：`bringup_config_test` 当前覆盖 7 项配置检查；短时启动可创建 RGB-D 候选点节点并等待相机 topic。
+
 ## 下一步目标
 
-阶段 6：为 mock 任务闭环新增组合 launch，让 task node、mock 事件适配器和 mock MoveIt 链路可以一键启动。
+阶段 9：新增目标检测/TensorRT 推理启动入口，让检测节点、感知基础节点与任务链路逐步对接。
