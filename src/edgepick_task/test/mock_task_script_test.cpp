@@ -65,9 +65,36 @@ TEST(MockTaskScriptTest, ListsAvailableScenariosForLaunchParameters)
 {
   const auto names = valid_mock_task_scenarios();
 
-  EXPECT_EQ(names.size(), 6U);
+  EXPECT_EQ(names.size(), 7U);
   EXPECT_EQ(names.front(), "success");
-  EXPECT_EQ(names.back(), "moveit_success");
+  EXPECT_EQ(names.back(), "system_rehearsal_success");
+}
+
+TEST(MockTaskScriptTest, SystemRehearsalLeavesPerceptionAndMoveItToExternalAdapters)
+{
+  MockTaskScript script = make_mock_task_script("system_rehearsal_success");
+  GraspStateMachine machine;
+
+  ASSERT_EQ(script.next_event_for_state(machine.state()), TaskEvent::kStartRequested);
+  machine.handle(TaskEvent::kStartRequested);
+
+  EXPECT_EQ(machine.state(), TaskState::kPerceiving);
+  EXPECT_FALSE(script.next_event_for_state(machine.state()).has_value());
+  machine.handle(TaskEvent::kTargetAcquired);
+
+  EXPECT_EQ(machine.state(), TaskState::kPlanning);
+  EXPECT_FALSE(script.next_event_for_state(machine.state()).has_value());
+  machine.handle(TaskEvent::kPlanSucceeded);
+
+  EXPECT_EQ(machine.state(), TaskState::kExecuting);
+  EXPECT_FALSE(script.next_event_for_state(machine.state()).has_value());
+  machine.handle(TaskEvent::kExecutionSucceeded);
+
+  ASSERT_EQ(script.next_event_for_state(machine.state()), TaskEvent::kVerificationSucceeded);
+  machine.handle(TaskEvent::kVerificationSucceeded);
+
+  EXPECT_EQ(machine.state(), TaskState::kSucceeded);
+  EXPECT_TRUE(script.complete());
 }
 
 }  // namespace

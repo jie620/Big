@@ -144,3 +144,52 @@ def test_perception_metrics_launch_observes_real_or_bag_detection_chain():
     assert 'DeclareLaunchArgument("play_bag", default_value="false")' in launch_text
     assert 'DeclareLaunchArgument("run_candidate_node", default_value="true")' in launch_text
     assert 'DeclareLaunchArgument("metrics_period_ms", default_value="5000")' in launch_text
+
+
+def test_target_frame_transform_launch_publishes_base_frame_target_point():
+    launch_file = package_source_dir() / "launch" / "edgepick_target_frame_transform.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="target_frame_transform_node"' in launch_text
+    assert "/edgepick/perception/target_point" in launch_text
+    assert "/edgepick/perception/target_point_base" in launch_text
+    assert 'DeclareLaunchArgument("target_frame", default_value="base_link")' in launch_text
+    assert 'DeclareLaunchArgument("transform_timeout_ms", default_value="100")' in launch_text
+
+
+def test_mock_grasp_target_launch_builds_pregrasp_and_grasp_poses():
+    launch_file = package_source_dir() / "launch" / "edgepick_mock_grasp_target.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="grasp_target_builder_node"' in launch_text
+    assert "/edgepick/perception/target_point_base" in launch_text
+    assert "/edgepick/task/pregrasp_pose" in launch_text
+    assert "/edgepick/task/grasp_pose" in launch_text
+    assert 'DeclareLaunchArgument("target_frame", default_value="base_link")' in launch_text
+    assert 'DeclareLaunchArgument("pregrasp_offset_m", default_value="0.08")' in launch_text
+    assert 'DeclareLaunchArgument("grasp_z_offset_m", default_value="0.02")' in launch_text
+
+
+def test_prehardware_mock_rehearsal_launch_wires_safe_full_chain():
+    launch_file = package_source_dir() / "launch" / "edgepick_prehardware_mock_rehearsal.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="mock_rgbd_source_node"' in launch_text
+    assert 'executable="mock_detector_node"' in launch_text
+    assert 'executable="detected_target_candidate_node"' in launch_text
+    assert 'executable="target_frame_transform_node"' in launch_text
+    assert 'executable="grasp_target_builder_node"' in launch_text
+    assert 'executable="perception_metrics_node"' in launch_text
+    assert 'executable="task_node"' in launch_text
+    assert 'executable="mock_task_driver_node"' in launch_text
+    assert 'executable="moveit_action_adapter_node"' in launch_text
+    assert 'executable="static_transform_publisher"' in launch_text
+    assert '"scenario": "system_rehearsal_success"' in launch_text
+    assert '"publish_task_events": True' in launch_text
+    assert '"publish_event_once": True' in launch_text
+    assert '"gate_events_by_task_state": True' in launch_text
+    assert '"target_event_state": "perceiving"' in launch_text
+    assert "/edgepick/perception/target_point_base" in launch_text
+    assert "/edgepick/task/pregrasp_pose" in launch_text
+    assert "/edgepick/task/grasp_pose" in launch_text
+    assert "/edgepick/perception/metrics" in launch_text

@@ -12,7 +12,11 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `launch/edgepick_moveit_mock.launch.py`：启动 MoveIt、RViz 和 EdgePick mock ros2_control 链路。
 - `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
 - `launch/edgepick_detection_perception_mock.launch.py`：启动 mock detector 和检测框驱动的 RGB-D 候选点节点。
+- `launch/edgepick_perception_metrics.launch.py`：启动检测链路量测入口，可选 rosbag 回放。
+- `launch/edgepick_mock_grasp_target.launch.py`：启动 mock-safe 抓取/预抓取目标构造节点。
+- `launch/edgepick_prehardware_mock_rehearsal.launch.py`：启动真实硬件前系统级 mock rehearsal。
 - `launch/edgepick_rgbd_perception.launch.py`：启动 RGB-D 目标候选点基础节点。
+- `launch/edgepick_target_frame_transform.launch.py`：启动目标点 TF 转换节点。
 - `launch/edgepick_task_mock.launch.py`：启动 `edgepick_task/task_node`，用于手动或 mock 节点发布任务事件。
 - `launch/edgepick_task_closed_loop.launch.py`：同时启动 task node 和 mock 任务驱动节点，自动跑任务事件闭环。
 - `test/test_bringup_config.py`：验证 xacro、controller yaml 和 MoveIt launch 关键连接点。
@@ -146,6 +150,36 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detecti
 
 验证记录：`bringup_config_test` 当前覆盖 9 项配置检查，新增阶段 10 metrics launch 检查。五包测试结果为 74 tests、0 errors、0 failures、0 skipped。
 
+### 阶段 11：目标点 TF 转换 launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_target_frame_transform.launch.py`，启动 `target_frame_transform_node`。
+
+完成内容：launch 暴露 `input_topic`、`output_topic`、`target_frame` 和 `transform_timeout_ms`。默认把 `/edgepick/perception/target_point` 转换为 `/edgepick/perception/target_point_base`，目标 frame 为 `base_link`。
+
+结构反思：bringup 继续只组合节点和参数，不发布临时标定值，也不启动真实硬件。TF 来源必须由 robot_state_publisher、static transform 或后续标定节点明确提供。
+
+验证记录：`bringup_config_test` 当前覆盖 10 项配置检查，新增阶段 11 target frame transform launch 检查。
+
+### 阶段 12：mock 抓取目标构造 launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_mock_grasp_target.launch.py`，启动 `grasp_target_builder_node`。
+
+完成内容：launch 暴露 `target_frame`、`pregrasp_offset_m` 和 `grasp_z_offset_m`。默认订阅 `/edgepick/perception/target_point_base`，发布 `/edgepick/task/pregrasp_pose` 和 `/edgepick/task/grasp_pose`。
+
+结构反思：bringup 继续只组合节点和参数，不生成 MoveIt goal，也不启动真实硬件。抓取 offset/orientation 先作为 mock-safe 参数固定，后续系统演练再决定是否进入 MoveIt goal 构造。
+
+验证记录：`bringup_config_test` 当前覆盖 11 项配置检查，新增阶段 12 mock grasp target launch 检查。
+
+### 阶段 13：pre-hardware mock rehearsal launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_prehardware_mock_rehearsal.launch.py`，一键启动真实硬件前系统级 mock chain。
+
+完成内容：launch 组合 mock RGB-D、mock detector、检测候选点、static TF、目标点 TF 转换、抓取目标构造、metrics、task node、系统 rehearsal driver 和 MoveIt action mock adapter。
+
+结构反思：bringup 仍只做启动编排。真实 I2C 后端没有被加入默认 launch；阶段 13 只证明 topic/TF/事件时序在 mock 环境中可以闭环。
+
+验证记录：`bringup_config_test` 当前覆盖 12 项配置检查；2026-08-19 五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动创建 10 个节点并跑到 `succeeded`。
+
 ## 下一步目标
 
-阶段 11：基于真实模型或 rosbag 的 metrics 输出沉淀实验参数，并准备 TF/手眼标定相关 launch 入口。
+阶段 14：新增显式 real hardware launch 前，继续保持所有默认 launch mock-safe。

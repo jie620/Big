@@ -5,8 +5,8 @@
 - `edgepick_hardware`：C++ I2C 传输抽象、mock 后端和 ros2_control `SystemInterface`。当前已完成命令网关与 mock 系统接口。
 - `edgepick_bringup`：生命周期管理、参数和启动编排。当前已完成 mock control 与 MoveIt mock launch。
 - `edgepick_interfaces`：EdgePick 自定义 ROS 2 消息。当前已完成目标检测结果消息。
-- `edgepick_perception`：RGB-D 相机内参、深度采样、目标检测选择和目标候选点。当前已完成检测框中心到三维点的基础链路。
-- `edgepick_task`：抓取任务状态机、超时、恢复策略、ROS 2 task node、mock 闭环驱动和 MoveIt action 适配层。当前已完成规划/执行 action 结果映射。
+- `edgepick_perception`：RGB-D 相机内参、深度采样、目标检测选择、目标候选点和 TF 转换。当前已完成目标点基座坐标转换。
+- `edgepick_task`：抓取任务状态机、超时、恢复策略、ROS 2 task node、mock 闭环驱动、MoveIt action 适配层和抓取目标构造。当前已完成抓取/预抓取 pose 生成。
 
 任何真实 I2C 写入必须经 `edgepick_hardware`，不得在感知或任务节点中直接调用 `Arm_Lib`。
 
@@ -112,6 +112,36 @@
 
 验证记录：五包构建通过，测试总数更新为 74 个且全部通过。`edgepick_perception` 现在暴露 `detected_target_candidate_node`、`mock_detector_node`、`perception_metrics_node` 和 `rgbd_target_candidate_node` 四个可执行入口。
 
+### 阶段 11：目标点基座坐标转换
+
+当前阶段：扩展 `src/edgepick_perception` 和 `src/edgepick_bringup`，让感知目标点可以通过 TF 转换到机器人规划 frame。
+
+完成内容：`target_frame_transform` 负责纯坐标变换，`target_frame_transform_node` 负责 ROS topic 与 TF 适配，`edgepick_target_frame_transform.launch.py` 负责启动该边界。
+
+结构反思：阶段 11 增加的是坐标边界，不是硬件边界。MoveIt 目标构造和真实机械臂控制继续延后，避免在 TF 未验证前进入真实执行。
+
+验证记录：五包构建通过；新增 `target_frame_transform_test`，`edgepick_perception` 现在暴露 `target_frame_transform_node`。
+
+### 阶段 12：mock MoveIt 抓取目标构造
+
+当前阶段：扩展 `src/edgepick_task` 和 `src/edgepick_bringup`，让基座坐标目标点可以变成抓取/预抓取 `PoseStamped`。
+
+完成内容：`grasp_target_builder` 负责纯目标位姿构造，`grasp_target_builder_node` 负责 ROS topic 适配，`edgepick_mock_grasp_target.launch.py` 负责启动该边界。
+
+结构反思：阶段 12 增加的是规划目标输入边界，不是 MoveIt goal 发送边界，也不是硬件边界。真实机械臂控制仍然延后到系统级 mock 演练和接入检查之后。
+
+验证记录：`edgepick_task` 与 `edgepick_bringup` 构建通过；新增 `grasp_target_builder_test`，`edgepick_task` 现在暴露 `grasp_target_builder_node`。
+
+### 阶段 13：真实硬件前系统级 mock 演练
+
+当前阶段：扩展 `src/edgepick_perception`、`src/edgepick_task` 和 `src/edgepick_bringup`，形成一条可启动的 pre-hardware rehearsal 链。
+
+完成内容：`mock_rgbd_source_node` 产生固定 depth/camera_info，`detected_target_candidate_node` 可按 task state 门控感知事件，`edgepick_prehardware_mock_rehearsal.launch.py` 组合感知、TF、目标构造、metrics 和任务闭环。
+
+结构反思：阶段 13 是 mock 系统检查，不是硬件接入。真实 I2C 仍只能放在 `edgepick_hardware` 边界内，并必须通过显式 launch/参数启用。
+
+验证记录：2026-08-19 五包构建通过；五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动 rehearsal launch 创建 10 个节点并跑到 `succeeded`。
+
 ## 下一步目标
 
-阶段 11：用真实模型或 rosbag 的 metrics 记录调参，并为 TF/手眼标定阶段准备可复现实验数据。
+阶段 14：新增真实 I2C 后端设计与显式启用 launch，保留 mock rehearsal 作为回归入口。

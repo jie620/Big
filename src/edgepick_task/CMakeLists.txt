@@ -7,12 +7,14 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 
 add_library(${PROJECT_NAME}
+  src/grasp_target_builder.cpp
   src/grasp_state_machine.cpp
   src/mock_task_script.cpp
   src/moveit_action_event_mapper.cpp
@@ -23,6 +25,9 @@ target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(${PROJECT_NAME}
+  geometry_msgs
 )
 
 add_executable(task_node
@@ -55,6 +60,15 @@ ament_target_dependencies(moveit_action_adapter_node
   std_msgs
 )
 
+add_executable(grasp_target_builder_node
+  src/grasp_target_builder_node.cpp
+)
+target_link_libraries(grasp_target_builder_node ${PROJECT_NAME})
+ament_target_dependencies(grasp_target_builder_node
+  geometry_msgs
+  rclcpp
+)
+
 install(
   DIRECTORY include/
   DESTINATION include
@@ -71,11 +85,15 @@ install(
     task_node
     mock_task_driver_node
     moveit_action_adapter_node
+    grasp_target_builder_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(grasp_target_builder_test test/grasp_target_builder_test.cpp)
+  target_link_libraries(grasp_target_builder_test ${PROJECT_NAME})
+
   ament_add_gtest(grasp_state_machine_test test/grasp_state_machine_test.cpp)
   target_link_libraries(grasp_state_machine_test ${PROJECT_NAME})
 
@@ -89,7 +107,7 @@ if(BUILD_TESTING)
   target_link_libraries(moveit_action_event_mapper_test ${PROJECT_NAME})
 endif()
 
-ament_export_dependencies(diagnostic_msgs moveit_msgs rclcpp rclcpp_action std_msgs)
+ament_export_dependencies(diagnostic_msgs geometry_msgs moveit_msgs rclcpp rclcpp_action std_msgs)
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_package()

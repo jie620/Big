@@ -64,4 +64,4 @@ task node: succeeded
 
 ## 下一步
 
-阶段 9：新增目标检测/TensorRT 推理层，为后续真实 MoveIt goal 提供更可靠的目标像素和候选点。
+阶段 13 已完成系统级 mock rehearsal，将目标构造、MoveIt action mock 和任务状态机串成真实硬件前闭环。阶段 14 将进入显式真实 I2C 后端接入，默认仍保持 mock-safe。

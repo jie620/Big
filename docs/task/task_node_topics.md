@@ -72,4 +72,4 @@ task node 现在只接受事件、输出状态和诊断；它不直接执行感�
 
 ## 下一步
 
-阶段 9：新增目标检测/TensorRT 推理层，让 `target_acquired` 由检测结果和深度候选点共同驱动。
+阶段 13 已完成系统级 mock rehearsal，并验证 task topic、目标构造和 MoveIt action mock 的端到端事件流。阶段 14 将进入显式真实 I2C 后端接入，默认仍保持 mock-safe。

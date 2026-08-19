@@ -40,4 +40,4 @@ EdgePick 的硬件边界包。它目前只提供可测试的 mock 链路，不�
 
 ## 下一步目标
 
-阶段 3：新增 `edgepick_bringup`，生成使用 `edgepick_hardware/MockSystemInterface` 的 xacro/launch/config，让 MoveIt 和 controller manager 在 RViz 中通过 EdgePick 自己的 mock 硬件接口跑通。
+阶段 14：在 `edgepick_hardware` 内新增显式启用的真实 I2C 后端，默认仍使用 `MockSystemInterface`。

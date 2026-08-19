@@ -104,6 +104,36 @@
 
 验证记录：阶段 10 实现后自动化测试更新为 74 tests、0 errors、0 failures、0 skipped。`edgepick_perception_metrics.launch.py` 已进入 bringup 配置测试。
 
+### 阶段 11：目标点 TF 转换边界
+
+当前阶段：新增 ADR 0011 和 `docs/perception/target_frame_transform.md`，记录相机坐标目标点如何转换到机器人规划坐标系。
+
+完成内容：文档明确 `target_frame_transform_node` 只订阅 `/edgepick/perception/target_point`、读取 TF，并发布 `/edgepick/perception/target_point_base`；它不构造抓取姿态、不调用 MoveIt、不访问真实硬件。
+
+结构反思：阶段 11 把 TF/手眼标定边界提前单独验证，避免后续把坐标错误、规划失败和真实执行风险混在一起。
+
+验证记录：阶段 11 实现后新增目标点转换单元测试和 bringup launch 契约测试。
+
+### 阶段 12：mock MoveIt 目标构造边界
+
+当前阶段：新增 ADR 0012 和 `docs/task/grasp_target_builder.md`，记录基座坐标目标点如何转换为抓取/预抓取规划目标。
+
+完成内容：文档明确 `grasp_target_builder_node` 只订阅 `/edgepick/perception/target_point_base`，发布 `/edgepick/task/pregrasp_pose` 和 `/edgepick/task/grasp_pose`；它不发送 MoveIt goal、不执行轨迹、不访问真实硬件。
+
+结构反思：阶段 12 把目标位姿构造独立出来，后续如果 MoveIt 规划失败，可以先判断问题来自目标点、抓取 offset/orientation 还是规划器本身。
+
+验证记录：阶段 12 实现后新增抓取目标构造单元测试和 bringup launch 契约测试。
+
+### 阶段 13：真实硬件前系统级 mock 演练
+
+当前阶段：新增 ADR 0013 和 `docs/launch/prehardware_mock_rehearsal.md`，记录真实硬件前系统级 mock rehearsal 和 readiness checklist。
+
+完成内容：文档明确 rehearsal launch 串起 mock RGB-D、mock detector、TF、目标构造、metrics、task node、mock driver 和 MoveIt action mock；该链路不启动真实硬件。
+
+结构反思：阶段 13 把接入真实硬件前的最后一次系统检查写成可复现命令，而不是靠临时手动 topic pub。
+
+验证记录：2026-08-19 五包构建通过；五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动已跑到 `succeeded`，并记录需要在真实终端复验的 topic echo checklist。
+
 ## 下一步目标
 
-阶段 11：记录真实模型或 rosbag 的量测结果，形成检测阈值、深度范围、目标点稳定性和 TF/手眼标定输入数据的下一轮方案。
+阶段 14：记录真实 I2C 后端接入方案，要求显式启用且默认保持 mock-safe。

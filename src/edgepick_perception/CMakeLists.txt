@@ -12,11 +12,15 @@ find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_library(${PROJECT_NAME}
+  src/mock_rgbd_source.cpp
   src/perception_metrics.cpp
   src/rgbd_projection.cpp
   src/target_detection_selection.cpp
+  src/target_frame_transform.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME}
@@ -25,7 +29,9 @@ target_include_directories(${PROJECT_NAME}
     $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(${PROJECT_NAME}
+  geometry_msgs
   sensor_msgs
+  tf2
 )
 
 add_executable(rgbd_target_candidate_node
@@ -59,6 +65,15 @@ ament_target_dependencies(mock_detector_node
   rclcpp
 )
 
+add_executable(mock_rgbd_source_node
+  src/mock_rgbd_source_node.cpp
+)
+target_link_libraries(mock_rgbd_source_node ${PROJECT_NAME})
+ament_target_dependencies(mock_rgbd_source_node
+  rclcpp
+  sensor_msgs
+)
+
 add_executable(perception_metrics_node
   src/perception_metrics_node.cpp
 )
@@ -69,6 +84,17 @@ ament_target_dependencies(perception_metrics_node
   geometry_msgs
   rclcpp
   std_msgs
+)
+
+add_executable(target_frame_transform_node
+  src/target_frame_transform_node.cpp
+)
+target_link_libraries(target_frame_transform_node ${PROJECT_NAME})
+ament_target_dependencies(target_frame_transform_node
+  geometry_msgs
+  rclcpp
+  tf2
+  tf2_ros
 )
 
 install(
@@ -86,8 +112,10 @@ install(
   TARGETS
     detected_target_candidate_node
     mock_detector_node
+    mock_rgbd_source_node
     perception_metrics_node
     rgbd_target_candidate_node
+    target_frame_transform_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -96,14 +124,20 @@ if(BUILD_TESTING)
   ament_add_gtest(rgbd_projection_test test/rgbd_projection_test.cpp)
   target_link_libraries(rgbd_projection_test ${PROJECT_NAME})
 
+  ament_add_gtest(mock_rgbd_source_test test/mock_rgbd_source_test.cpp)
+  target_link_libraries(mock_rgbd_source_test ${PROJECT_NAME})
+
   ament_add_gtest(target_detection_selection_test test/target_detection_selection_test.cpp)
   target_link_libraries(target_detection_selection_test ${PROJECT_NAME})
 
   ament_add_gtest(perception_metrics_test test/perception_metrics_test.cpp)
   target_link_libraries(perception_metrics_test ${PROJECT_NAME})
+
+  ament_add_gtest(target_frame_transform_test test/target_frame_transform_test.cpp)
+  target_link_libraries(target_frame_transform_test ${PROJECT_NAME})
 endif()
 
-ament_export_dependencies(builtin_interfaces edgepick_interfaces sensor_msgs)
+ament_export_dependencies(builtin_interfaces edgepick_interfaces geometry_msgs sensor_msgs tf2)
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_package()

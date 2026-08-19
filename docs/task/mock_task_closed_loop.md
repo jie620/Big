@@ -59,4 +59,4 @@ mock 闭环只是自动化任务流，不是真实感知、真实 MoveIt action 
 
 ## 下一步
 
-阶段 9：新增目标检测/TensorRT 推理层，把固定目标像素替换为检测框或分割结果。
+阶段 13 已完成系统级 mock rehearsal，将任务闭环、目标构造和 MoveIt action mock 串成真实硬件前闭环。阶段 14 将进入显式真实 I2C 后端接入，默认仍保持 mock-safe。

@@ -138,6 +138,36 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 验证记录：2026-08-19 五包构建通过；`colcon test-result --test-result-base build --all --verbose` 汇总为 74 tests、0 errors、0 failures、0 skipped。新增 `perception_metrics_test` 覆盖指标统计和摘要格式，`bringup_config_test` 覆盖阶段 10 launch 契约。
 
+### 阶段 11：目标点基座坐标转换
+
+当前阶段：`edgepick_perception` 新增 `target_frame_transform_node` 和纯 C++ `transform_target_point` helper，`edgepick_bringup` 新增 `edgepick_target_frame_transform.launch.py`。现在可以把 `/edgepick/perception/target_point` 从相机 frame 转换到机器人规划 frame，并发布 `/edgepick/perception/target_point_base`。
+
+完成内容：节点通过 TF 查找源 frame 到 `base_link` 的转换，保留目标点采样时间戳，只改变坐标 frame 和坐标值。launch 暴露输入 topic、输出 topic、目标 frame 和 TF 超时参数。
+
+结构反思：阶段 11 仍然不构造抓取姿态、不调用 MoveIt、不访问真实 `/dev/i2c-7`。它先把“相机目标点能否进入机器人基座坐标系”做成可测边界，为后续 mock MoveIt 目标构造和手眼标定验证打基础。
+
+验证记录：2026-08-19 五包构建通过；新增 `target_frame_transform_test` 覆盖平移、Z 轴旋转和零四元数回退，`bringup_config_test` 覆盖阶段 11 launch 契约。
+
+### 阶段 12：mock MoveIt 抓取目标构造
+
+当前阶段：`edgepick_task` 新增 `grasp_target_builder` helper 和 `grasp_target_builder_node`，`edgepick_bringup` 新增 `edgepick_mock_grasp_target.launch.py`。现在可以把 `/edgepick/perception/target_point_base` 转换为 `/edgepick/task/pregrasp_pose` 和 `/edgepick/task/grasp_pose`。
+
+完成内容：默认规划 frame 为 `base_link`，抓取点在目标点上方 `0.02 m`，预抓取点再上方 `0.08 m`，末端 orientation 使用 mock 阶段固定的向下姿态。helper 会拒绝空 frame、非有限坐标、负 offset 和零长度四元数。
+
+结构反思：阶段 12 仍然不发送 MoveIt goal、不执行轨迹、不访问真实 `/dev/i2c-7`。它先把“基座坐标目标点是否能变成可规划位姿”做成可测边界，避免把目标构造、规划器和真实执行混在一起。
+
+验证记录：2026-08-19 `edgepick_task` 与 `edgepick_bringup` 构建通过；新增 `grasp_target_builder_test` 覆盖 offset、orientation 和无效输入，`bringup_config_test` 覆盖阶段 12 launch 契约；`ros2 pkg executables edgepick_task` 可识别 `grasp_target_builder_node`，`edgepick_mock_grasp_target.launch.py --show-args` 通过。
+
+### 阶段 13：真实硬件前系统级 mock 演练
+
+当前阶段：`edgepick_perception` 新增 `mock_rgbd_source_node`，`edgepick_bringup` 新增 `edgepick_prehardware_mock_rehearsal.launch.py`，`edgepick_task` 新增 `system_rehearsal_success` 脚本。现在可以不接真相机、不接真实 I2C，把 mock RGB-D、检测、TF、抓取目标、metrics、任务状态机和 MoveIt action mock 串成一条 rehearsal 链。
+
+完成内容：rehearsal launch 启动 10 个节点，目标点从 mock depth/camera_info 和 mock detection 产生，经 TF 转成 `/edgepick/perception/target_point_base`，再生成 `/edgepick/task/pregrasp_pose` 与 `/edgepick/task/grasp_pose`。任务事件流由感知节点发布一次 `target_acquired`，MoveIt action mock 发布规划/执行结果，mock verifier 发布验证成功。
+
+结构反思：阶段 13 仍然不发送真实 MoveIt goal、不启动真实硬件、不访问 `/dev/i2c-7`。它把真实硬件前最容易混在一起的 topic、TF、事件时序和参数类型问题提前暴露在 mock 环境中。
+
+验证记录：2026-08-19 五包构建通过；五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；`edgepick_prehardware_mock_rehearsal.launch.py --show-args` 通过。短时启动创建 10 个节点并完成 `idle -> perceiving -> planning -> executing -> verifying -> succeeded`，metrics 显示 detection、target point 和 task event 计数正常。沙箱仍有 DDS UDP socket 权限警告，真实桌面终端需要按 checklist 复验 topic echo。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -153,4 +183,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 11：用真实模型或 rosbag 采集一轮感知证据，基于 `/edgepick/perception/metrics` 调整检测阈值、深度范围和目标点稳定性策略，并为 TF/手眼标定阶段准备输入数据。
+阶段 14：进入真实硬件接入，新增显式启用的真实 I2C 后端；默认 launch 继续保持 mock-safe。

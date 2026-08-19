@@ -87,4 +87,4 @@ ros2 topic echo /edgepick/perception/target_point --once
 
 ## 下一步
 
-阶段 11：基于真实模型或 rosbag 的 `/edgepick/perception/metrics` 记录，调整检测阈值、深度范围和目标点稳定性策略，并为 TF/手眼标定准备可复现实验数据。
+阶段 13 已完成系统级 mock rehearsal，将 metrics、目标点 TF、mock 抓取目标构造和任务闭环放进同一条演练链。阶段 14 将进入显式真实 I2C 后端接入，默认仍保持 mock-safe。

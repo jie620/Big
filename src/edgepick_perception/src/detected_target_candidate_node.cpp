@@ -47,6 +47,8 @@ public:
       declare_parameter<std::string>("target_topic", "/edgepick/perception/target_point");
     const std::string event_topic =
       declare_parameter<std::string>("event_topic", "/edgepick/task/event");
+    const std::string state_topic =
+      declare_parameter<std::string>("state_topic", "/edgepick/task/state");
 
     selection_config_.min_score = declare_parameter<double>("min_detection_score", 0.50);
     selection_config_.target_label = declare_parameter<std::string>("target_label", "");
@@ -61,9 +63,18 @@ public:
     publish_task_events_ = declare_parameter<bool>("publish_task_events", true);
     publish_target_lost_ = declare_parameter<bool>("publish_target_lost", true);
     publish_event_once_ = declare_parameter<bool>("publish_event_once", true);
+    gate_events_by_task_state_ = declare_parameter<bool>("gate_events_by_task_state", false);
+    target_event_state_ = declare_parameter<std::string>("target_event_state", "perceiving");
 
     target_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(target_topic, 10);
     event_publisher_ = create_publisher<std_msgs::msg::String>(event_topic, 10);
+    if (gate_events_by_task_state_) {
+      state_subscription_ = create_subscription<std_msgs::msg::String>(
+        state_topic, 10,
+        [this](const std_msgs::msg::String::SharedPtr message) {
+          latest_task_state_ = message->data;
+        });
+    }
     detections_subscription_ =
       create_subscription<edgepick_interfaces::msg::TargetDetectionArray>(
       detections_topic, 10,
@@ -176,6 +187,10 @@ private:
     if (event_name == "target_lost" && !publish_target_lost_) {
       return;
     }
+    if (gate_events_by_task_state_ &&
+        (!latest_task_state_.has_value() || *latest_task_state_ != target_event_state_)) {
+      return;
+    }
 
     std_msgs::msg::String event;
     event.data = event_name;
@@ -192,10 +207,14 @@ private:
   bool publish_task_events_{true};
   bool publish_target_lost_{true};
   bool publish_event_once_{true};
+  bool gate_events_by_task_state_{false};
+  std::string target_event_state_{"perceiving"};
+  std::optional<std::string> latest_task_state_;
   bool target_acquired_event_sent_{false};
   bool target_lost_event_sent_{false};
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr target_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr event_publisher_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr state_subscription_;
   rclcpp::Subscription<edgepick_interfaces::msg::TargetDetectionArray>::SharedPtr
     detections_subscription_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_subscription_;

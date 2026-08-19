@@ -1,14 +1,17 @@
 # edgepick_task
 
-EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段 5 增加 ROS 2 task node；阶段 6 增加 mock 闭环驱动；阶段 7 增加 MoveIt action 适配层。当前仍不构造真实 MoveIt 目标，也不接触真实机械臂。
+EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段 5 增加 ROS 2 task node；阶段 6 增加 mock 闭环驱动；阶段 7 增加 MoveIt action 适配层；阶段 12 增加 mock 抓取目标构造。当前仍不发送真实 MoveIt goal，也不接触真实机械臂。
 
 ## 结构
 
 - `include/edgepick_task/grasp_state_machine.hpp`：状态、事件、失败码、配置和状态机接口。
+- `include/edgepick_task/grasp_target_builder.hpp`：基座坐标目标点到抓取/预抓取 pose 的纯构造逻辑。
 - `include/edgepick_task/mock_task_script.hpp`：mock 闭环场景脚本和状态门控步骤。
 - `include/edgepick_task/moveit_action_event_mapper.hpp`：MoveIt action 阶段/结果到任务事件的映射。
 - `include/edgepick_task/task_event_io.hpp`：事件字符串解析、状态快照和 diagnostics 文本格式化。
 - `src/grasp_state_machine.cpp`：状态转移、恢复次数、取消、重置和字符串化实现。
+- `src/grasp_target_builder.cpp`：目标点、offset 和末端 orientation 到 `PoseStamped` 的可测转换。
+- `src/grasp_target_builder_node.cpp`：ROS 2 抓取目标构造节点，发布 pregrasp/grasp pose。
 - `src/mock_task_script.cpp`：成功路径和一次恢复路径的 mock 事件脚本。
 - `src/mock_task_driver_node.cpp`：ROS 2 mock 驱动节点，根据任务状态自动发布下一步事件。
 - `src/moveit_action_adapter_node.cpp`：ROS 2 MoveIt action 适配节点，将规划/执行结果发布为任务事件。
@@ -16,6 +19,7 @@ EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段
 - `src/task_event_io.cpp`：统一维护 ROS topic、CLI 示例和测试共用的事件词表。
 - `src/task_node.cpp`：ROS 2 节点，订阅任务事件并发布状态、失败原因和 diagnostics。
 - `test/grasp_state_machine_test.cpp`：成功路径、失败恢复、恢复预算耗尽、超时、取消和非法转移测试。
+- `test/grasp_target_builder_test.cpp`：抓取/预抓取 offset、orientation 归一化和无效输入测试。
 - `test/mock_task_script_test.cpp`：mock 成功和恢复场景的状态机闭环测试。
 - `test/moveit_action_event_mapper_test.cpp`：MoveIt action result 映射与 `moveit_success` 脚本测试。
 - `test/task_event_io_test.cpp`：事件词表、字符串解析和状态快照格式测试。
@@ -100,6 +104,7 @@ planning_recovery
 execution_recovery
 verification_recovery
 moveit_success
+system_rehearsal_success
 ```
 
 MoveIt action mock 适配验证：
@@ -156,6 +161,26 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_
 
 验证记录：`moveit_action_event_mapper_test` 验证 planning/execution 的 success、failure、timeout、unavailable 映射；`edgepick_moveit_action_mock.launch.py` 短时启动中 `plan_succeeded` 与 `execution_succeeded` 均由 action 适配节点发布。
 
+### 阶段 12：mock MoveIt 抓取目标构造
+
+当前阶段：新增 `grasp_target_builder` 和 `grasp_target_builder_node`，把 `/edgepick/perception/target_point_base` 转换为任务侧抓取目标 topic。
+
+完成内容：节点发布 `/edgepick/task/pregrasp_pose` 和 `/edgepick/task/grasp_pose`。默认抓取点为目标点上方 `0.02 m`，预抓取点在抓取点上方再加 `0.08 m`，orientation 先固定为 mock 阶段向下抓取姿态。
+
+结构反思：目标 pose 构造不放进 MoveIt action adapter。adapter 继续只负责 action result 到任务事件的映射；目标构造保持可单测、可 echo、可单独替换。
+
+验证记录：`grasp_target_builder_test` 覆盖 offset、orientation 归一化、空 frame、非有限坐标、负 offset 和零长度四元数；`ros2 pkg executables edgepick_task` 可列出 `grasp_target_builder_node`。
+
+### 阶段 13：系统级 mock rehearsal 脚本
+
+当前阶段：`mock_task_script` 新增 `system_rehearsal_success` 场景，用于真实硬件前 rehearsal launch。
+
+完成内容：该脚本只发布 `start_requested` 和 `verification_succeeded`。`target_acquired` 由感知候选节点在 `perceiving` 状态发布，`plan_succeeded` 与 `execution_succeeded` 由 MoveIt action mock adapter 发布。
+
+结构反思：任务包继续只管理状态事件，不知道 depth image、TF 或 I2C。系统 rehearsal 让外部 adapter 分别承担感知、规划/执行和验证事件。
+
+验证记录：`mock_task_script_test` 覆盖 `system_rehearsal_success`；2026-08-19 五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动确认外部感知和 MoveIt 事件可以把状态机推进到 `succeeded`。
+
 ## 下一步目标
 
-阶段 9：新增目标检测/TensorRT 推理层，让 `target_acquired` 的目标像素来自检测结果，而不是固定中心点。
+阶段 14：真实硬件接入时继续让 task 包只消费事件，不直接调用硬件或相机 API。

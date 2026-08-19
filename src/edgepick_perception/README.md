@@ -5,13 +5,21 @@ EdgePick 的 RGB-D 感知基础包。阶段 8 先实现相机内参、深度采�
 ## 结构
 
 - `include/edgepick_perception/rgbd_projection.hpp`：相机内参、像素、深度范围和三维点投影接口。
+- `include/edgepick_perception/mock_rgbd_source.hpp`：mock RGB-D source 的 depth/camera_info 构造接口。
 - `include/edgepick_perception/target_detection_selection.hpp`：检测框过滤、排序和中心像素选择接口。
+- `include/edgepick_perception/target_frame_transform.hpp`：目标点 TF 转换接口。
 - `src/rgbd_projection.cpp`：`16UC1` 毫米深度、`32FC1` 米深度解析和 pinhole 投影实现。
 - `src/rgbd_target_candidate_node.cpp`：ROS 2 节点，订阅 depth image 与 camera info，发布目标候选点和可选任务事件。
 - `src/detected_target_candidate_node.cpp`：订阅检测结果、depth image 和 camera info，发布检测框驱动的三维候选点。
 - `src/mock_detector_node.cpp`：发布可配置 mock 检测框，用于无模型验证阶段 9 链路。
+- `src/mock_rgbd_source_node.cpp`：发布固定 depth image 和 camera info，用于阶段 13 rehearsal。
+- `src/perception_metrics_node.cpp`：旁路发布感知链路延迟、稳定性和事件计数。
+- `src/target_frame_transform_node.cpp`：把相机坐标目标点转换到机器人规划 frame。
 - `test/rgbd_projection_test.cpp`：内参解析、深度读取、三维投影和异常输入测试。
 - `test/target_detection_selection_test.cpp`：检测框过滤、排序和像素选择测试。
+- `test/perception_metrics_test.cpp`：感知指标统计测试。
+- `test/mock_rgbd_source_test.cpp`：mock depth/camera_info 消息构造测试。
+- `test/target_frame_transform_test.cpp`：目标点 TF 转换测试。
 
 ## Topic
 
@@ -19,6 +27,8 @@ EdgePick 的 RGB-D 感知基础包。阶段 8 先实现相机内参、深度采�
 - 输入：`/camera/depth/camera_info`，类型 `sensor_msgs/msg/CameraInfo`。
 - 输入：`/edgepick/perception/detections`，类型 `edgepick_interfaces/msg/TargetDetectionArray`。
 - 输出：`/edgepick/perception/target_point`，类型 `geometry_msgs/msg/PointStamped`。
+- 输出：`/edgepick/perception/target_point_base`，类型 `geometry_msgs/msg/PointStamped`。
+- 输出：`/edgepick/perception/metrics`，类型 `std_msgs/msg/String`。
 - 可选输出：`/edgepick/task/event`，类型 `std_msgs/msg/String`，发布 `target_acquired` 或 `target_lost`。
 
 ## 使用
@@ -69,6 +79,26 @@ ros2 run edgepick_perception rgbd_target_candidate_node
 
 验证记录：`perception_metrics_test` 覆盖 4 个指标统计用例；2026-08-19 五包测试结果为 74 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_perception` 可识别 `perception_metrics_node`。
 
+### 阶段 11：目标点基座坐标转换
+
+当前阶段：新增 `target_frame_transform` helper 和 `target_frame_transform_node`，把 `/edgepick/perception/target_point` 转换为 `/edgepick/perception/target_point_base`。
+
+完成内容：转换 helper 支持平移、旋转和零四元数回退；ROS 节点通过 TF 查询源 frame 到 `base_link` 的转换，并发布保留采样时间戳的目标点。
+
+结构反思：目标点转换只处理 frame，不处理抓取姿态、规划目标或硬件控制。这样手眼标定和 TF 问题可以在 MoveIt 和真实机械臂之前单独验证。
+
+验证记录：`target_frame_transform_test` 覆盖 3 个坐标转换用例；2026-08-19 五包测试通过。`ros2 pkg executables edgepick_perception` 可识别 `target_frame_transform_node`。
+
+### 阶段 13：mock RGB-D source 与感知事件门控
+
+当前阶段：新增 `mock_rgbd_source` helper 和 `mock_rgbd_source_node`，并为 `detected_target_candidate_node` 增加可选 task-state event gate。
+
+完成内容：mock RGB-D source 发布固定 `16UC1` depth image 和 `CameraInfo`；rehearsal 中检测候选节点只在 `/edgepick/task/state == perceiving` 时发布一次 `target_acquired`。
+
+结构反思：这让系统 rehearsal 不依赖真相机，也不会在任务进入 planning/executing 后继续刷感知事件。默认独立感知 launch 仍保持原行为。
+
+验证记录：`mock_rgbd_source_test` 覆盖内参和深度图构造；2026-08-19 五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动 rehearsal launch 后 metrics 显示 `target_points=50`、`target_acquired_events=1`。
+
 ## 下一步目标
 
-阶段 11：用真实模型或 rosbag 的指标记录调整检测阈值、深度范围和目标点稳定性策略，为 TF/手眼标定准备数据。
+阶段 14：真实硬件接入时继续让 perception 包只发布感知结果，不直接触碰硬件控制。
