@@ -59,6 +59,16 @@ ros2 run edgepick_perception rgbd_target_candidate_node
 
 验证记录：`target_detection_selection_test` 覆盖 5 个检测选择用例；2026-08-17 五包测试结果为 68 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_perception` 可识别检测候选点节点和 mock detector。
 
+### 阶段 10：感知量测入口
+
+当前阶段：新增 `perception_metrics` 指标库和 `perception_metrics_node`，用于真实模型或 rosbag 回放时观察检测帧、目标点和任务事件。
+
+完成内容：指标库统计检测消息数量、候选框数量、空检测帧、检测延迟、目标点延迟、目标点步长、Z 轴稳定性和任务事件计数；节点把摘要发布到 `/edgepick/perception/metrics`。
+
+结构反思：metrics 节点是旁路观察者，不参与检测选择和深度投影。这样真实 YOLO/TensorRT 节点只需要按阶段 9 契约发布检测结果，指标层就能独立评估链路质量。
+
+验证记录：`perception_metrics_test` 覆盖 4 个指标统计用例；2026-08-19 五包测试结果为 74 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_perception` 可识别 `perception_metrics_node`。
+
 ## 下一步目标
 
-阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。
+阶段 11：用真实模型或 rosbag 的指标记录调整检测阈值、深度范围和目标点稳定性策略，为 TF/手眼标定准备数据。

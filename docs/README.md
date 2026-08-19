@@ -94,6 +94,16 @@
 
 验证记录：阶段 9 实现后自动化测试更新为 68 tests、0 errors、0 failures、0 skipped。`edgepick_detection_perception_mock.launch.py --show-args` 通过，短时启动可创建 mock detector 与 detected target candidate 节点。
 
+### 阶段 10：感知量测入口
+
+当前阶段：新增 ADR 0010 和 `docs/perception/perception_metrics.md`，记录真实模型或 rosbag 回放接入后的延迟、稳定性和任务事件量测方式。
+
+完成内容：文档明确 `perception_metrics_node` 是旁路观察者，只订阅 `/edgepick/perception/detections`、`/edgepick/perception/target_point` 和 `/edgepick/task/event`，并发布 `/edgepick/perception/metrics`。
+
+结构反思：阶段 10 文档把“真实 detector 输入”和“量测证据”拆开，避免后续把模型部署、深度投影、TF 和机械臂执行调试混成一个不可定位的问题。
+
+验证记录：阶段 10 实现后自动化测试更新为 74 tests、0 errors、0 failures、0 skipped。`edgepick_perception_metrics.launch.py` 已进入 bringup 配置测试。
+
 ## 下一步目标
 
-阶段 10：记录真实模型推理或 rosbag 回放方案，明确输入预处理、输出解析、延迟统计和稳定性验证。
+阶段 11：记录真实模型或 rosbag 的量测结果，形成检测阈值、深度范围、目标点稳定性和 TF/手眼标定输入数据的下一轮方案。

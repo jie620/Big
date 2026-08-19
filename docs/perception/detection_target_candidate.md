@@ -49,6 +49,8 @@ ros2 topic echo /edgepick/task/event
 
 2026-08-17 代码侧验证：五包构建通过，自动化测试为 68 tests、0 errors、0 failures、0 skipped；`edgepick_detection_perception_mock.launch.py --show-args` 通过，短时启动可创建 mock detector 与 detected target candidate 节点。真实相机终端还需补 `/edgepick/perception/target_point` 的持续输出证据。
 
+2026-08-19 阶段 10 补充：新增 `perception_metrics_node` 后，可通过 `/edgepick/perception/metrics` 同时观察 detection、target point 和 task event 的量测结果。
+
 如果 `/edgepick/perception/detections` 有输出但 `/edgepick/perception/target_point` 没有输出，优先检查：
 
 - depth topic 是否仍在发布：`ros2 topic hz /camera/depth/image_raw`
@@ -62,4 +64,4 @@ ros2 topic echo /edgepick/task/event
 
 ## 下一步
 
-阶段 10：接入真实 YOLO/TensorRT 推理节点或 rosbag 回放，开始记录推理延迟、检测置信度和目标点稳定性。
+阶段 11：用真实模型或 rosbag 的 metrics 输出调整检测阈值、深度范围和目标点稳定性策略。

@@ -128,6 +128,16 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 验证记录：2026-08-17 五包构建通过；自动化测试更新为 68 tests、0 errors、0 failures、0 skipped。`ros2 pkg executables edgepick_perception` 可识别 `detected_target_candidate_node`、`mock_detector_node` 和 `rgbd_target_candidate_node`；`edgepick_detection_perception_mock.launch.py --show-args` 通过。短时启动可创建 mock detector 与 detected target candidate 两个节点；当前沙箱仍有 DDS UDP socket 权限警告，真实终端需继续补 `/edgepick/perception/detections` 和 `/edgepick/perception/target_point` echo 证据。
 
+### 阶段 10：真实模型或 rosbag 感知量测入口
+
+当前阶段：`edgepick_perception` 新增 `perception_metrics_node` 和纯 C++ 指标累积库，`edgepick_bringup` 新增 `edgepick_perception_metrics.launch.py`。现在可以观察真实 detector 或 rosbag 回放产生的 `/edgepick/perception/detections`、`/edgepick/perception/target_point` 和 `/edgepick/task/event`，并发布 `/edgepick/perception/metrics`。
+
+完成内容：指标覆盖检测帧数、候选框数量、空检测帧、检测消息年龄、目标点消息年龄、目标点步长、Z 轴稳定性，以及 `target_acquired`/`target_lost` 事件计数。launch 支持外部真实模型 publisher，也支持可选 `ros2 bag play --clock` 回放入口。
+
+结构反思：阶段 10 没有把 TensorRT runtime、rosbag 播放和深度投影塞进一个大节点，而是新增旁路 metrics 节点。这样真实模型、回放数据和后续 TF/MoveIt 目标构造都能独立替换，同时保留统一的感知质量证据。
+
+验证记录：2026-08-19 五包构建通过；`colcon test-result --test-result-base build --all --verbose` 汇总为 74 tests、0 errors、0 failures、0 skipped。新增 `perception_metrics_test` 覆盖指标统计和摘要格式，`bringup_config_test` 覆盖阶段 10 launch 契约。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -143,4 +153,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。
+阶段 11：用真实模型或 rosbag 采集一轮感知证据，基于 `/edgepick/perception/metrics` 调整检测阈值、深度范围和目标点稳定性策略，并为 TF/手眼标定阶段准备输入数据。

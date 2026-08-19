@@ -102,6 +102,16 @@
 
 验证记录：五包构建通过，测试总数更新为 68 个且全部通过。`edgepick_perception` 现在暴露 `detected_target_candidate_node`、`mock_detector_node` 和 `rgbd_target_candidate_node` 三个可执行入口。
 
+### 阶段 10：感知量测入口
+
+当前阶段：扩展 `src/edgepick_perception` 和 `src/edgepick_bringup`，让真实模型或 rosbag 回放链路具备延迟、稳定性和事件计数输出。
+
+完成内容：`perception_metrics` 负责纯指标统计，`perception_metrics_node` 负责 ROS topic 观察，`edgepick_perception_metrics.launch.py` 负责组合检测驱动目标点节点、指标节点和可选 rosbag replay。
+
+结构反思：`src/` 继续保持“接口、感知逻辑、启动组合、硬件边界”分离；阶段 10 增加的是观测面，而不是把真实模型、TF 或硬件控制提前耦合进感知节点。
+
+验证记录：五包构建通过，测试总数更新为 74 个且全部通过。`edgepick_perception` 现在暴露 `detected_target_candidate_node`、`mock_detector_node`、`perception_metrics_node` 和 `rgbd_target_candidate_node` 四个可执行入口。
+
 ## 下一步目标
 
-阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。
+阶段 11：用真实模型或 rosbag 的 metrics 记录调参，并为 TF/手眼标定阶段准备可复现实验数据。

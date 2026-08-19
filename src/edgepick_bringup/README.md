@@ -136,6 +136,16 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detecti
 
 验证记录：`bringup_config_test` 当前覆盖 8 项配置检查，新增检测感知 mock launch 检查。`edgepick_detection_perception_mock.launch.py --show-args` 通过；短时启动可创建 `mock_detector_node` 和 `detected_target_candidate_node`。沙箱 DDS UDP socket 权限警告不作为真实桌面终端失败结论。
 
+### 阶段 10：感知量测 launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_perception_metrics.launch.py`，把检测框驱动目标点节点和指标节点组合起来，并提供可选 rosbag 回放入口。
+
+完成内容：launch 暴露 `play_bag`、`bag_path`、`use_sim_time`、`run_candidate_node`、目标筛选参数、depth/camera_info topic 和 `metrics_period_ms`。默认只观察感知链路，不启动 mock detector，不访问真实 `/dev/i2c-7`，不会移动机械臂。
+
+结构反思：bringup 只负责组合真实 detector 或 rosbag 与 metrics 观察者，不把模型推理或指标计算写进 launch。后续真实 TensorRT 节点仍可以独立替换 detection publisher。
+
+验证记录：`bringup_config_test` 当前覆盖 9 项配置检查，新增阶段 10 metrics launch 检查。五包测试结果为 74 tests、0 errors、0 failures、0 skipped。
+
 ## 下一步目标
 
-阶段 10：接入真实模型推理或 rosbag 回放，记录检测延迟、目标点稳定性和任务事件触发情况。
+阶段 11：基于真实模型或 rosbag 的 metrics 输出沉淀实验参数，并准备 TF/手眼标定相关 launch 入口。

@@ -127,3 +127,20 @@ def test_detection_perception_mock_launch_connects_detector_to_rgbd_projection()
     assert "/edgepick/task/event" in launch_text
     assert 'DeclareLaunchArgument("target_label", default_value="target")' in launch_text
     assert 'DeclareLaunchArgument("min_detection_score", default_value="0.50")' in launch_text
+
+
+def test_perception_metrics_launch_observes_real_or_bag_detection_chain():
+    launch_file = package_source_dir() / "launch" / "edgepick_perception_metrics.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="detected_target_candidate_node"' in launch_text
+    assert 'executable="perception_metrics_node"' in launch_text
+    assert "ros2" in launch_text
+    assert "bag" in launch_text
+    assert "play" in launch_text
+    assert "/edgepick/perception/detections" in launch_text
+    assert "/edgepick/perception/target_point" in launch_text
+    assert "/edgepick/perception/metrics" in launch_text
+    assert 'DeclareLaunchArgument("play_bag", default_value="false")' in launch_text
+    assert 'DeclareLaunchArgument("run_candidate_node", default_value="true")' in launch_text
+    assert 'DeclareLaunchArgument("metrics_period_ms", default_value="5000")' in launch_text

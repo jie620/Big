@@ -6,6 +6,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 find_package(edgepick_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -13,6 +14,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 add_library(${PROJECT_NAME}
+  src/perception_metrics.cpp
   src/rgbd_projection.cpp
   src/target_detection_selection.cpp
 )
@@ -57,6 +59,18 @@ ament_target_dependencies(mock_detector_node
   rclcpp
 )
 
+add_executable(perception_metrics_node
+  src/perception_metrics_node.cpp
+)
+target_link_libraries(perception_metrics_node ${PROJECT_NAME})
+ament_target_dependencies(perception_metrics_node
+  builtin_interfaces
+  edgepick_interfaces
+  geometry_msgs
+  rclcpp
+  std_msgs
+)
+
 install(
   DIRECTORY include/
   DESTINATION include
@@ -72,6 +86,7 @@ install(
   TARGETS
     detected_target_candidate_node
     mock_detector_node
+    perception_metrics_node
     rgbd_target_candidate_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
@@ -83,9 +98,12 @@ if(BUILD_TESTING)
 
   ament_add_gtest(target_detection_selection_test test/target_detection_selection_test.cpp)
   target_link_libraries(target_detection_selection_test ${PROJECT_NAME})
+
+  ament_add_gtest(perception_metrics_test test/perception_metrics_test.cpp)
+  target_link_libraries(perception_metrics_test ${PROJECT_NAME})
 endif()
 
-ament_export_dependencies(edgepick_interfaces sensor_msgs)
+ament_export_dependencies(builtin_interfaces edgepick_interfaces sensor_msgs)
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_package()
