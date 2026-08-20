@@ -183,4 +183,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 15：在真实 DOFBOT 上执行低速单关节验证，并记录供电、权限、I2C 探测、控制器状态和回滚命令。
+阶段 16：根据阶段 15 的真机结果修正关节方向、零点、限位和低速控制参数。

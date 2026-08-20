@@ -193,4 +193,4 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detecti
 
 ## 下一步目标
 
-阶段 15：保留 mock launch 作为回归入口，同时在真实 DOFBOT 上执行低速单关节验证。
+阶段 16：根据阶段 15 的真机结果修正关节方向、零点、限位和低速控制参数。
