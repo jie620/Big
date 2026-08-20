@@ -9,6 +9,7 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `config/edgepick_ros2_controllers.yaml`：controller manager、轨迹控制器、夹爪控制器和 joint state broadcaster 配置。
 - `config/initial_positions.yaml`：mock 控制链的初始关节位置。
 - `launch/edgepick_mock_control.launch.py`：只启动 robot_state_publisher、controller manager 和控制器 spawner。
+- `launch/edgepick_real_control.launch.py`：显式启用真实 I2C 的 controller-manager 启动入口。
 - `launch/edgepick_moveit_mock.launch.py`：启动 MoveIt、RViz 和 EdgePick mock ros2_control 链路。
 - `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
 - `launch/edgepick_detection_perception_mock.launch.py`：启动 mock detector 和检测框驱动的 RGB-D 候选点节点。
@@ -180,6 +181,16 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detecti
 
 验证记录：`bringup_config_test` 当前覆盖 12 项配置检查；2026-08-19 五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动创建 10 个节点并跑到 `succeeded`。
 
+### 阶段 14：显式 real control launch
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_real_control.launch.py`，把 `use_real_i2c`、`i2c_device` 和 `i2c_address` 参数显式透传到 ros2_control 的硬件描述。
+
+完成内容：默认仍走 `MockSystemInterface`；只有在 `use_real_i2c:=true` 时，`edgepick_hardware` 才会创建真实 I2C 传输适配器并尝试打开 `/dev/i2c-7`。
+
+结构反思：阶段 14 把真机启用和 mock 控制链分离成两个 launch。这样默认回归不会碰硬件，而真机验证时又不需要改代码分支。
+
+验证记录：2026-08-20 `edgepick_bringup` 配置测试覆盖了 `edgepick_real_control.launch.py` 的参数注入；`edgepick_real_control.launch.py --show-args` 通过。
+
 ## 下一步目标
 
-阶段 14：新增显式 real hardware launch 前，继续保持所有默认 launch mock-safe。
+阶段 15：保留 mock launch 作为回归入口，同时在真实 DOFBOT 上执行低速单关节验证。

@@ -59,4 +59,4 @@ ros2 topic echo /edgepick/perception/metrics --once
 
 ## 边界
 
-该 rehearsal 是真实硬件前最后的 mock 系统检查，不等同于真机执行。进入阶段 14 时，真实 I2C 后端必须通过独立参数或独立 launch 显式启用，并继续保留当前 mock rehearsal 作为回归测试入口。
+该 rehearsal 是真实硬件前最后的 mock 系统检查，不等同于真机执行。阶段 14 已提供 `edgepick_real_control.launch.py` 作为真实 I2C 入口，并继续保留当前 mock rehearsal 作为回归测试入口。

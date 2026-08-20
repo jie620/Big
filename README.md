@@ -183,4 +183,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 14：进入真实硬件接入，新增显式启用的真实 I2C 后端；默认 launch 继续保持 mock-safe。
+阶段 15：在真实 DOFBOT 上执行低速单关节验证，并记录供电、权限、I2C 探测、控制器状态和回滚命令。

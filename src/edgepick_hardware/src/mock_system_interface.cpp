@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <stdexcept>
 
+#include "edgepick_hardware/dofbot_i2c_transport.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "pluginlib/class_list_macros.hpp"
 
@@ -23,6 +24,36 @@ bool is_velocity_interface(const hardware_interface::InterfaceInfo & interface)
   return interface.name == hardware_interface::HW_IF_VELOCITY;
 }
 
+bool parse_bool_parameter(const std::string & value, bool default_value = false)
+{
+  if (value.empty()) {
+    return default_value;
+  }
+  if (value == "1" || value == "true" || value == "TRUE" || value == "True" ||
+      value == "yes" || value == "YES" || value == "on" || value == "ON")
+  {
+    return true;
+  }
+  if (value == "0" || value == "false" || value == "FALSE" || value == "False" ||
+      value == "no" || value == "NO" || value == "off" || value == "OFF")
+  {
+    return false;
+  }
+  return default_value;
+}
+
+std::string parameter_or(
+  const hardware_interface::HardwareInfo & hardware_info,
+  const std::string & key,
+  const std::string & default_value)
+{
+  const auto iter = hardware_info.hardware_parameters.find(key);
+  if (iter == hardware_info.hardware_parameters.end() || iter->second.empty()) {
+    return default_value;
+  }
+  return iter->second;
+}
+
 }  // namespace
 
 hardware_interface::CallbackReturn MockSystemInterface::on_init(
@@ -38,11 +69,32 @@ hardware_interface::CallbackReturn MockSystemInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
+  const bool use_real_i2c =
+    parse_bool_parameter(parameter_or(hardware_info, "use_real_i2c", "false"));
+
+  try {
+    if (use_real_i2c) {
+      DofbotI2cConfig i2c_config;
+      i2c_config.enabled = true;
+      i2c_config.device = parameter_or(hardware_info, "i2c_device", i2c_config.device);
+      const auto address_text = parameter_or(hardware_info, "i2c_address", "0x15");
+      i2c_config.address = static_cast<std::uint8_t>(std::stoul(address_text, nullptr, 0));
+      transport_ = std::make_unique<DofbotI2cTransport>(i2c_config);
+      mock_transport_ = nullptr;
+    } else {
+      auto mock_transport = std::make_unique<MockTransport>();
+      mock_transport_ = mock_transport.get();
+      transport_ = std::move(mock_transport);
+    }
+  } catch (const std::exception &) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
   // Keep the gateway policy here so controller-manager traffic still passes
   // through the same command safety gate used by lower-level tests.
   GatewayConfig config;
   config.min_command_interval = std::chrono::milliseconds{20};
-  gateway_.emplace(transport_, config);
+  gateway_.emplace(*transport_, config);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -135,7 +187,8 @@ const std::vector<std::string> & MockSystemInterface::joint_names() const
 
 const std::vector<MockWrite> & MockSystemInterface::writes() const
 {
-  return transport_.writes();
+  static const std::vector<MockWrite> empty_writes;
+  return mock_transport_ ? mock_transport_->writes() : empty_writes;
 }
 
 const GatewayStatistics & MockSystemInterface::gateway_statistics() const

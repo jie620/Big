@@ -12,6 +12,7 @@ find_package(rclcpp REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/command_gateway.cpp
+  src/dofbot_i2c_transport.cpp
   src/mock_system_interface.cpp
   src/mock_transport.cpp
 )
@@ -45,6 +46,9 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(command_gateway_test test/command_gateway_test.cpp)
   target_link_libraries(command_gateway_test ${PROJECT_NAME})
+
+  ament_add_gtest(dofbot_i2c_transport_test test/dofbot_i2c_transport_test.cpp)
+  target_link_libraries(dofbot_i2c_transport_test ${PROJECT_NAME})
 
   ament_add_gtest(mock_system_interface_test test/mock_system_interface_test.cpp)
   target_link_libraries(mock_system_interface_test ${PROJECT_NAME})

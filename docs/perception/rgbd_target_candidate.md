@@ -71,4 +71,4 @@ z = depth_m
 
 ## 下一步
 
-阶段 13 已完成系统级 mock rehearsal，将 RGB-D 候选点、TF、目标构造、MoveIt action mock 和任务状态机串成真实硬件前闭环。阶段 14 将进入显式真实 I2C 后端接入，默认仍保持 mock-safe。
+阶段 14 已完成显式 real I2C 后端接入，默认仍保持 mock-safe。阶段 15 将在真实 DOFBOT 上做低速单关节验证。

@@ -23,6 +23,9 @@ def test_xacro_expands_to_edgepick_mock_hardware():
 
     robot_description = result.stdout
     assert "edgepick_hardware/MockSystemInterface" in robot_description
+    assert 'name="use_real_i2c"' in robot_description
+    assert 'name="i2c_device"' in robot_description
+    assert 'name="i2c_address"' in robot_description
     assert "mock_components/GenericSystem" not in robot_description
     for joint_name in [
         "Arm1_Joint",
@@ -62,6 +65,18 @@ def test_moveit_launch_replaces_only_robot_description_path():
     assert "edgepick_dofbot.urdf.xacro" in launch_text
     assert "dofbot_pro_moveit" in launch_text
     assert "edgepick_ros2_controllers.yaml" in launch_text
+
+
+def test_real_control_launch_enables_explicit_i2c_parameters():
+    launch_file = package_source_dir() / "launch" / "edgepick_real_control.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'DeclareLaunchArgument("use_real_i2c", default_value="true")' in launch_text
+    assert 'DeclareLaunchArgument("i2c_device", default_value="/dev/i2c-7")' in launch_text
+    assert 'DeclareLaunchArgument("i2c_address", default_value="0x15")' in launch_text
+    assert "use_real_i2c:=" in launch_text
+    assert "i2c_device:=" in launch_text
+    assert "i2c_address:=" in launch_text
 
 
 def test_task_mock_launch_starts_task_node_with_topic_contract():

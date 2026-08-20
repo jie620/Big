@@ -134,6 +134,16 @@
 
 验证记录：2026-08-19 五包构建通过；五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动已跑到 `succeeded`，并记录需要在真实终端复验的 topic echo checklist。
 
+### 阶段 14：显式 real I2C 后端
+
+当前阶段：新增 ADR 0014 和 `docs/launch/real_control.md`，记录真实 I2C 后端如何在 `edgepick_hardware` 和 `edgepick_bringup` 中显式启用。
+
+完成内容：文档明确 real I2C 入口不改变默认 mock 行为；`use_real_i2c:=true` 才会触碰 `/dev/i2c-7`，默认路径仍保持 mock-safe。
+
+结构反思：阶段 14 继续沿用“默认安全、显式切换”的原则，避免把真机接入写成隐式副作用。
+
+验证记录：2026-08-20 阶段 14 代码与配置测试通过，`edgepick_real_control.launch.py --show-args` 可解析参数。
+
 ## 下一步目标
 
-阶段 14：记录真实 I2C 后端接入方案，要求显式启用且默认保持 mock-safe。
+阶段 15：记录真实 DOFBOT 低速验证结果与真机前检查表。

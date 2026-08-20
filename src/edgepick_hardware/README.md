@@ -1,6 +1,6 @@
 # edgepick_hardware
 
-EdgePick 的硬件边界包。它目前只提供可测试的 mock 链路，不连接真实 `/dev/i2c-7`，也不会移动机械臂。
+EdgePick 的硬件边界包。它默认只提供可测试的 mock 链路；真实 `/dev/i2c-7` 后端只在显式启用时打开。
 
 ## 结构
 
@@ -8,6 +8,7 @@ EdgePick 的硬件边界包。它目前只提供可测试的 mock 链路，不�
 - `include/edgepick_hardware/command_gateway.hpp`：命令校验、限频、重复抑制和统计。
 - `include/edgepick_hardware/transport.hpp`：底层写入抽象。
 - `include/edgepick_hardware/mock_transport.hpp`：内存传输和失败注入。
+- `include/edgepick_hardware/dofbot_i2c_transport.hpp`：显式启用的真实 I2C 传输适配器。
 - `include/edgepick_hardware/mock_system_interface.hpp`：`ros2_control` mock `SystemInterface`。
 - `src/`：上述接口实现。
 - `test/`：不依赖相机、MoveIt 或真实机械臂的单元测试。
@@ -38,6 +39,16 @@ EdgePick 的硬件边界包。它目前只提供可测试的 mock 链路，不�
 
 阶段 3 修正：bringup 冒烟测试发现 pluginlib 需要加载动态库，`edgepick_hardware` 已改为 `SHARED` 库，并新增 `plugin_loading_test.cpp`，确保 `edgepick_hardware/MockSystemInterface` 能通过 pluginlib 实例化。
 
+### 阶段 14：显式 real I2C 后端
+
+当前阶段：新增 `DofbotI2cTransport` 和 `MockSystemInterface` 的显式 real I2C 切换路径。默认仍使用 mock 传输；只有在 `use_real_i2c:=true` 时才会打开 `/dev/i2c-7`。
+
+完成内容：real I2C 适配器对齐厂商 `Arm_Lib` 的写帧，先写运动时间寄存器 `0x1e`，再写六舵机命令寄存器 `0x1d`；`MockSystemInterface` 继续通过 `CommandGateway` 复用同一条安全门。
+
+结构反思：阶段 14 只是把真实 I2C 入口显式化，不把真机变成默认路径。这样 mock rehearsal、controller-manager 测试和真机启用可以共存，不互相污染。
+
+验证记录：2026-08-20 `edgepick_hardware` 与 `edgepick_bringup` 构建通过；新增 `dofbot_i2c_transport_test`、`MockSystemInterface` 的显式 real I2C 失败路径测试，以及 `edgepick_real_control.launch.py` 的配置检查。
+
 ## 下一步目标
 
-阶段 14：在 `edgepick_hardware` 内新增显式启用的真实 I2C 后端，默认仍使用 `MockSystemInterface`。
+阶段 15：在真实 DOFBOT 上做低速单关节验证，核对方向、零点、限位和 `/dev/i2c-7` 权限。

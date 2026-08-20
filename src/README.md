@@ -142,6 +142,16 @@
 
 验证记录：2026-08-19 五包构建通过；五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动 rehearsal launch 创建 10 个节点并跑到 `succeeded`。
 
+### 阶段 14：显式 real I2C 后端
+
+当前阶段：`edgepick_hardware` 新增 `DofbotI2cTransport`，`edgepick_bringup` 新增 `edgepick_real_control.launch.py`。默认仍是 mock；只有显式 `use_real_i2c:=true` 时才会打开真实 I2C。
+
+完成内容：real I2C 路径对齐厂商 `Arm_Lib` 的六舵机写帧，`MockSystemInterface` 保持同一命令网关和相同的安全门。
+
+结构反思：阶段 14 把真机路径显式化，但不把它混进默认闭环。这样 mock rehearsal 仍可作为回归入口，真机验证则单独开关。
+
+验证记录：2026-08-20 `edgepick_hardware` 与 `edgepick_bringup` 构建通过；新增 real I2C transport、显式失败路径测试和 bringup 参数测试。
+
 ## 下一步目标
 
-阶段 14：新增真实 I2C 后端设计与显式启用 launch，保留 mock rehearsal 作为回归入口。
+阶段 15：在真实 DOFBOT 上做低速单关节验证并记录结果。

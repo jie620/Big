@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <optional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -87,7 +88,8 @@ private:
   // Mock writes use a fixed nominal movement time until the bringup layer
   // exposes trajectory timing or parameters.
   std::chrono::milliseconds motion_time_{1000};
-  MockTransport transport_;
+  std::unique_ptr<CommandTransport> transport_;
+  MockTransport * mock_transport_{nullptr};
   std::optional<CommandGateway> gateway_;
   std::optional<CommandStatus> last_write_status_;
 };

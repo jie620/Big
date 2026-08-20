@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="DOFBOT_Pro-V24">
   <xacro:arg name="initial_positions_file" default="$(find edgepick_bringup)/config/initial_positions.yaml"/>
+  <xacro:arg name="use_real_i2c" default="false"/>
+  <xacro:arg name="i2c_device" default="/dev/i2c-7"/>
+  <xacro:arg name="i2c_address" default="0x15"/>
 
   <!-- Vendor geometry stays external; this package only replaces the ros2_control hardware plugin. -->
   <xacro:include filename="$(find dofbot_pro_description)/urdf/DOFBOT_Pro-V24.urdf"/>
@@ -8,5 +11,8 @@
 
   <xacro:edgepick_dofbot_ros2_control
     name="EdgePickMockSystem"
-    initial_positions_file="$(arg initial_positions_file)"/>
+    initial_positions_file="$(arg initial_positions_file)"
+    use_real_i2c="$(arg use_real_i2c)"
+    i2c_device="$(arg i2c_device)"
+    i2c_address="$(arg i2c_address)"/>
 </robot>

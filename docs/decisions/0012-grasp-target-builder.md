@@ -28,4 +28,4 @@
 
 ## 下一步
 
-阶段 13 已完成真实硬件前系统级 mock 演练和 readiness checklist。阶段 14 将进入显式真实 I2C 后端接入。
+阶段 14 已完成显式 real I2C 后端接入，默认仍保持 mock-safe。阶段 15 将在真实 DOFBOT 上做低速单关节验证。

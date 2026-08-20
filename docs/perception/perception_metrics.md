@@ -87,4 +87,4 @@ ros2 topic echo /edgepick/perception/target_point --once
 
 ## 下一步
 
-阶段 13 已完成系统级 mock rehearsal，将 metrics、目标点 TF、mock 抓取目标构造和任务闭环放进同一条演练链。阶段 14 将进入显式真实 I2C 后端接入，默认仍保持 mock-safe。
+阶段 14 已完成显式 real I2C 后端接入，默认仍保持 mock-safe。阶段 15 将在真实 DOFBOT 上做低速单关节验证。

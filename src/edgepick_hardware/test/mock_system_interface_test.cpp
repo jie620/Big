@@ -50,6 +50,15 @@ hardware_interface::HardwareInfo valid_hardware_info()
   return info;
 }
 
+hardware_interface::HardwareInfo real_i2c_hardware_info()
+{
+  auto info = valid_hardware_info();
+  info.hardware_parameters["use_real_i2c"] = "true";
+  info.hardware_parameters["i2c_device"] = "/tmp/edgepick_missing_i2c_device";
+  info.hardware_parameters["i2c_address"] = "0x15";
+  return info;
+}
+
 rclcpp::Time ros_time_ms(int64_t milliseconds)
 {
   return rclcpp::Time{milliseconds * 1000000};
@@ -156,6 +165,12 @@ TEST(MockSystemInterfaceTest, OutOfRangeCommandsReturnErrorWithoutTransportWrite
     hardware_interface::return_type::ERROR);
   EXPECT_EQ(system.last_write_status(), CommandStatus::kInvalidJointAngle);
   EXPECT_TRUE(system.writes().empty());
+}
+
+TEST(MockSystemInterfaceTest, ExplicitRealI2cEnablementRejectsMissingDevice)
+{
+  MockSystemInterface system;
+  EXPECT_EQ(system.on_init(real_i2c_hardware_info()), hardware_interface::CallbackReturn::ERROR);
 }
 
 }  // namespace

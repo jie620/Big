@@ -36,4 +36,4 @@
 
 ## 下一步
 
-阶段 14：进入真实硬件接入。真实 I2C 后端必须显式启用，默认 launch 仍保持 mock-safe。
+阶段 14 已完成显式 real I2C 后端接入，默认 launch 仍保持 mock-safe。阶段 15 将在真实 DOFBOT 上做低速单关节验证。

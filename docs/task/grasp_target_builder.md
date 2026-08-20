@@ -65,4 +65,4 @@ ros2 topic echo /edgepick/task/grasp_pose --once
 
 ## 下一步
 
-阶段 13 已把感知、TF、抓取目标、MoveIt action mock 和任务状态机串成系统级 mock 演练。阶段 14 将进入显式真实 I2C 后端接入。
+阶段 14 已完成显式 real I2C 后端接入，默认仍保持 mock-safe。阶段 15 将在真实 DOFBOT 上做低速单关节验证。
