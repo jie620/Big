@@ -1,6 +1,6 @@
 # edgepick_task
 
-EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段 5 增加 ROS 2 task node；阶段 6 增加 mock 闭环驱动；阶段 7 增加 MoveIt action 适配层；阶段 12 增加 mock 抓取目标构造。当前仍不发送真实 MoveIt goal，也不接触真实机械臂。
+EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段 5 增加 ROS 2 task node；阶段 6 增加 mock 闭环驱动；阶段 7 增加 MoveIt action 适配层；阶段 12 增加 mock 抓取目标构造；阶段 17 增加最小 MoveIt 真机验证节点。除了这个验证入口以外，任务逻辑仍不直接承担真实抓取控制。
 
 ## 结构
 
@@ -15,6 +15,7 @@ EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段
 - `src/mock_task_script.cpp`：成功路径和一次恢复路径的 mock 事件脚本。
 - `src/mock_task_driver_node.cpp`：ROS 2 mock 驱动节点，根据任务状态自动发布下一步事件。
 - `src/moveit_action_adapter_node.cpp`：ROS 2 MoveIt action 适配节点，将规划/执行结果发布为任务事件。
+- `src/moveit_real_validation_node.cpp`：最小真实 MoveIt 验证节点，做单关节小步前进和回零检查。
 - `src/moveit_action_event_mapper.cpp`：可单测的 action outcome 到 `TaskEvent` 映射。
 - `src/task_event_io.cpp`：统一维护 ROS topic、CLI 示例和测试共用的事件词表。
 - `src/task_node.cpp`：ROS 2 节点，订阅任务事件并发布状态、失败原因和 diagnostics。
@@ -119,6 +120,16 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_
 
 该 launch 默认 `use_mock_action_results:=true`，只把 mock action outcome 转换成任务事件，不向 MoveIt 发送真实目标。
 
+最小真实 MoveIt 验证：
+
+```bash
+cd /home/jetson/Codex_Projects/Big
+source /opt/ros/humble/setup.bash
+source /home/jetson/dofbot_pro_ws/install/setup.bash
+source install/setup.bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_real_validation.launch.py
+```
+
 ## 阶段记录
 
 记录规则：阶段记录只追加，不覆盖旧阶段；每次任务完成后只更新“下一步目标”。
@@ -181,6 +192,16 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_
 
 验证记录：`mock_task_script_test` 覆盖 `system_rehearsal_success`；2026-08-19 五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动确认外部感知和 MoveIt 事件可以把状态机推进到 `succeeded`。
 
+### 阶段 17：real MoveIt 最小关节验证节点
+
+当前阶段：新增 `moveit_real_validation_node`，在 real MoveIt 之上执行单关节小步前进和回到捕获 home 的最小真机验证。
+
+完成内容：节点先读取当前关节值作为 home，再对一个关节加一个小增量，最后回到 home 并检查回零误差。
+
+结构反思：这个节点不属于任务状态机，也不承担抓取策略。它只负责把“MoveIt 能不能稳定走一小步再回去”这件事单独测清楚。
+
+验证记录：待在真实 DOFBOT 上运行阶段 17 validation launch，并记录规划、执行和回零误差。
+
 ## 下一步目标
 
-阶段 14：真实硬件接入时继续让 task 包只消费事件，不直接调用硬件或相机 API。
+阶段 18：根据阶段 17 的结果决定是否把真实抓取目标接到 MoveIt 执行链路。

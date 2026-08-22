@@ -154,6 +154,24 @@
 
 验证记录：2026-08-20 新增 I2C 预检脚本和低速验证手册；脚本通过语法检查。用户真实终端已确认 `/dev/i2c-7` 可打开、`Arm_get_hardversion()` 返回 `0.20`、`Arm_ping_servo(1)` 返回 `218`。`i2cdetect` 未显示 `0x15`，因此阶段 15 以厂商 `Arm_Lib` 读探针作为 I2C 接入判据。随后用户真实终端完成 real control 启动、`Arm1_Joint` 低速小角度前进和回零，两个 action 目标均返回 `SUCCEEDED`。第一次启动时机械臂会立即进入控制器激活后的姿态，阶段 15 记录为已完成。
 
+### 阶段 16：real MoveIt on real control
+
+当前阶段：新增 ADR 0016 和 `docs/launch/real_moveit_control.md`，把 MoveIt 直接接到真实 controller-manager 上。
+
+完成内容：`edgepick_moveit_real.launch.py` 把 `edgepick_real_control.launch.py` 和 `move_group` 组合在一起，默认不启动 RViz，并继续沿用 vendor 的 controller 映射。
+
+结构反思：阶段 16 继续保持“底层 real control”和“上层 MoveIt 联动”分离。这样如果规划失败，可以先定位是 MoveIt、controller-manager 还是硬件响应问题，而不是把所有层混在一个入口里。
+
+验证记录：2026-08-21 `edgepick_bringup` 构建通过；`bringup_config_test` 现在覆盖 14 项检查；`edgepick_moveit_real.launch.py --show-args` 通过，参数包含 `publish_frequency`、`use_real_i2c`、`i2c_device`、`i2c_address` 和 `use_rviz`。真实 MoveIt 最小目标执行待进入阶段 17。
+
+### 阶段 17：real MoveIt 最小关节验证
+
+当前阶段：新增 `docs/launch/real_moveit_validation.md` 和 ADR 0017，记录阶段 17 的最小关节验证方式。
+
+完成内容：在 real control + MoveGroup 之上增加一个验证节点，按固定幅度做单关节小步移动，再回到捕获的 home 状态。
+
+结构反思：阶段 17 把“真实规划是否通”与“回零是否稳定”放进同一次验证，便于把控制器、规划器和硬件误差拆开看。
+
 ## 下一步目标
 
-阶段 16：根据阶段 15 的真机结果修正关节方向、零点、限位和低速控制参数。
+阶段 17：从 MoveIt 发送最小关节目标并确认规划、执行和回零稳定完成。

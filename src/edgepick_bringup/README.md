@@ -11,6 +11,8 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `launch/edgepick_mock_control.launch.py`：只启动 robot_state_publisher、controller manager 和控制器 spawner。
 - `launch/edgepick_real_control.launch.py`：显式启用真实 I2C 的 controller-manager 启动入口。
 - `launch/edgepick_moveit_mock.launch.py`：启动 MoveIt、RViz 和 EdgePick mock ros2_control 链路。
+- `launch/edgepick_moveit_real.launch.py`：启动 real control + MoveGroup 的阶段 16 联动入口。
+- `launch/edgepick_moveit_real_validation.launch.py`：启动 real MoveIt 并执行阶段 17 的最小关节验证。
 - `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
 - `launch/edgepick_detection_perception_mock.launch.py`：启动 mock detector 和检测框驱动的 RGB-D 候选点节点。
 - `launch/edgepick_perception_metrics.launch.py`：启动检测链路量测入口，可选 rosbag 回放。
@@ -43,6 +45,12 @@ ros2 launch edgepick_bringup edgepick_mock_control.launch.py
 
 ```bash
 ros2 launch edgepick_bringup edgepick_moveit_mock.launch.py
+```
+
+验证 real MoveIt 最小关节动作和回零：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_real_validation.launch.py
 ```
 
 只验证 task node 的事件入口和 diagnostics 输出：
@@ -191,6 +199,26 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detecti
 
 验证记录：2026-08-20 `edgepick_bringup` 配置测试覆盖了 `edgepick_real_control.launch.py` 的参数注入；`edgepick_real_control.launch.py --show-args` 通过。
 
+### 阶段 16：real MoveIt on real control
+
+当前阶段：新增 `edgepick_moveit_real.launch.py`，把 `edgepick_real_control.launch.py` 与 `move_group` 组合起来，默认不启动 RViz。
+
+完成内容：launch 继续沿用 vendor MoveIt 控制器映射，并保留 `use_real_i2c`、`i2c_device`、`i2c_address` 参数透传。
+
+结构反思：阶段 16 让 MoveIt 直接接到真实 controller-manager，但仍不把 task/perception 混进来。这样真实规划和真实执行的问题能单独被看见。
+
+验证记录：2026-08-21 `edgepick_bringup` 构建通过；`bringup_config_test` 现在覆盖 14 项检查；`edgepick_moveit_real.launch.py --show-args` 通过，参数包含 `publish_frequency`、`use_real_i2c`、`i2c_device`、`i2c_address` 和 `use_rviz`。真实 MoveIt 最小目标执行待进入阶段 17。
+
+### 阶段 17：real MoveIt 最小关节验证
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_moveit_real_validation.launch.py`，在阶段 16 的 real control + MoveGroup 基础上追加一个最小关节验证节点。
+
+完成内容：launch 暴露最小目标关节索引、角度增量、规划时间、重试次数、稳定等待和回零容差参数；节点先抓取当前关节值，再对单个关节做小幅度前进，最后回到捕获的 home 状态。
+
+结构反思：阶段 17 不再增加新的通用启动层，而是把“MoveIt 规划是否能稳定执行”和“回零是否仍然可控”合成一个最小验证动作。这样若失败，能直接区分是规划、执行还是回零误差问题。
+
+验证记录：待在真实 DOFBOT 上执行阶段 17 launch，并记录规划成功、执行成功和回零误差。
+
 ## 下一步目标
 
-阶段 16：根据阶段 15 的真机结果修正关节方向、零点、限位和低速控制参数。
+阶段 17：从 MoveIt 发送最小关节目标并确认规划、执行和回零稳定完成。

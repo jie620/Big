@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -60,6 +61,15 @@ ament_target_dependencies(moveit_action_adapter_node
   std_msgs
 )
 
+add_executable(moveit_real_validation_node
+  src/moveit_real_validation_node.cpp
+)
+target_link_libraries(moveit_real_validation_node ${PROJECT_NAME})
+ament_target_dependencies(moveit_real_validation_node
+  moveit_ros_planning_interface
+  rclcpp
+)
+
 add_executable(grasp_target_builder_node
   src/grasp_target_builder_node.cpp
 )
@@ -85,6 +95,7 @@ install(
     task_node
     mock_task_driver_node
     moveit_action_adapter_node
+    moveit_real_validation_node
     grasp_target_builder_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
@@ -107,7 +118,10 @@ if(BUILD_TESTING)
   target_link_libraries(moveit_action_event_mapper_test ${PROJECT_NAME})
 endif()
 
-ament_export_dependencies(diagnostic_msgs geometry_msgs moveit_msgs rclcpp rclcpp_action std_msgs)
+ament_export_dependencies(
+  diagnostic_msgs geometry_msgs moveit_msgs moveit_ros_planning_interface rclcpp rclcpp_action
+  std_msgs
+)
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 ament_package()
