@@ -5,7 +5,7 @@
 - `edgepick_hardware`：C++ I2C 传输抽象、mock 后端和 ros2_control `SystemInterface`。当前已完成命令网关与 mock 系统接口。
 - `edgepick_bringup`：生命周期管理、参数和启动编排。当前已完成 mock control 与 MoveIt mock launch。
 - `edgepick_interfaces`：EdgePick 自定义 ROS 2 消息。当前已完成目标检测结果消息。
-- `edgepick_perception`：RGB-D 相机内参、深度采样、目标检测选择、目标候选点和 TF 转换。当前已完成目标点基座坐标转换。
+- `edgepick_perception`：RGB-D 相机内参、深度采样、目标检测选择、YOLO/COCO 检测桥接、目标候选点和 TF 转换。当前已完成目标点基座坐标转换和真实目标检测桥接。
 - `edgepick_task`：抓取任务状态机、超时、恢复策略、ROS 2 task node、mock 闭环驱动、MoveIt action 适配层和抓取目标构造。当前已完成抓取/预抓取 pose 生成。
 
 任何真实 I2C 写入必须经 `edgepick_hardware`，不得在感知或任务节点中直接调用 `Arm_Lib`。
@@ -154,4 +154,4 @@
 
 ## 下一步目标
 
-阶段 16：真实 MoveIt + real control 联动验证，先用最小关节目标确认规划到执行闭环。
+阶段 19：把橘子检测结果接入任务/抓取联调，并继续做真机链路观测。

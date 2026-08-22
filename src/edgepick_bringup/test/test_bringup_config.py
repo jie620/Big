@@ -240,3 +240,39 @@ def test_prehardware_mock_rehearsal_launch_wires_safe_full_chain():
     assert "/edgepick/task/pregrasp_pose" in launch_text
     assert "/edgepick/task/grasp_pose" in launch_text
     assert "/edgepick/perception/metrics" in launch_text
+
+
+def test_yolo_detection_launch_connects_real_detector_to_detection_contract():
+    launch_file = package_source_dir() / "launch" / "edgepick_yolo_detection.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="edgepick_yolo_detector_node.py"' in launch_text
+    assert 'executable="detected_target_candidate_node"' in launch_text
+    assert "/camera/color/image_raw" in launch_text
+    assert "/camera/depth/image_raw" in launch_text
+    assert "/camera/depth/camera_info" in launch_text
+    assert "/edgepick/perception/detections" in launch_text
+    assert "/edgepick/perception/target_point" in launch_text
+    assert "DEFAULT_MODEL_PATH" in launch_text
+    assert "dofbot_pro_yolov11" in launch_text
+    assert "best.engine" in launch_text
+    assert 'DeclareLaunchArgument("conf_threshold", default_value="0.25")' in launch_text
+    assert 'DeclareLaunchArgument("publish_empty_frames", default_value="true")' in launch_text
+
+
+def test_orange_detection_launch_uses_coco_detector_and_orange_target():
+    launch_file = package_source_dir() / "launch" / "edgepick_orange_detection.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="edgepick_coco_detector_node.py"' in launch_text
+    assert 'executable="detected_target_candidate_node"' in launch_text
+    assert 'executable="edgepick_detection_viewer_node.py"' in launch_text
+    assert "/camera/color/image_raw" in launch_text
+    assert "/edgepick/perception/detections" in launch_text
+    assert "/edgepick/perception/target_point" in launch_text
+    assert 'default_value="orange"' in launch_text
+    assert "frozen_inference_graph.pb" in launch_text
+    assert "ssd_mobilenet_v2_coco.txt" in launch_text
+    assert "object_detection_coco.txt" in launch_text
+    assert 'DeclareLaunchArgument("show_viewer", default_value="false")' in launch_text
+    assert 'DeclareLaunchArgument("window_name", default_value="edgepick_detection")' in launch_text

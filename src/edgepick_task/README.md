@@ -204,4 +204,4 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_
 
 ## 下一步目标
 
-阶段 18：根据阶段 17 的结果决定是否把真实抓取目标接到 MoveIt 执行链路。
+阶段 18：先把橘子检测结果稳定接到任务链路，再决定是否进入真实抓取联调。

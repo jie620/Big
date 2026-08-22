@@ -168,6 +168,56 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 验证记录：2026-08-19 五包构建通过；五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；`edgepick_prehardware_mock_rehearsal.launch.py --show-args` 通过。短时启动创建 10 个节点并完成 `idle -> perceiving -> planning -> executing -> verifying -> succeeded`，metrics 显示 detection、target point 和 task event 计数正常。沙箱仍有 DDS UDP socket 权限警告，真实桌面终端需要按 checklist 复验 topic echo。
 
+### 阶段 14：显式 real I2C 后端
+
+当前阶段：`edgepick_hardware` 新增 `DofbotI2cTransport`，`edgepick_bringup` 新增 `edgepick_real_control.launch.py`。默认仍是 mock；只有显式 `use_real_i2c:=true` 时才会打开真实 I2C。
+
+完成内容：real I2C 路径对齐厂商 `Arm_Lib` 的六舵机写帧，`MockSystemInterface` 保持同一命令网关和相同安全门。
+
+结构反思：阶段 14 把真机启用和 mock 控制链分离成两个 launch。这样默认回归不会碰硬件，而真机验证时又不需要改代码分支。
+
+验证记录：2026-08-20 `edgepick_hardware` 与 `edgepick_bringup` 构建通过；新增 real I2C transport、显式失败路径测试和 bringup 参数测试。
+
+### 阶段 15：真实 DOFBOT 低速单关节验证
+
+当前阶段：在真实 DOFBOT 上做最小硬件闭环，只验证 I2C、controller-manager、控制器状态和单关节低速小角度动作。
+
+完成内容：`check_dofbot_i2c.py` 先做 I2C 预检，再由真实终端确认 `/dev/i2c-7`、`Arm_get_hardversion()`、`Arm_ping_servo()` 和低速关节动作。
+
+结构反思：阶段 15 把“能否安全移动一个关节”和“完整任务链能否抓取”拆开，避免第一次真机动作时同时调试感知、规划和硬件。
+
+验证记录：2026-08-20 新增 I2C 预检脚本和低速验证手册；脚本通过语法检查。用户真实终端已确认 `/dev/i2c-7` 可打开、`Arm_get_hardversion()` 返回 `0.20`、`Arm_ping_servo(1)` 返回 `218`；`Arm1_Joint` 低速小角度前进和回零均返回 `SUCCEEDED`。
+
+### 阶段 16：real MoveIt on real control
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_moveit_real.launch.py`，把 `edgepick_real_control.launch.py` 与 `move_group` 组合起来，默认不启动 RViz。
+
+完成内容：launch 继续沿用 vendor MoveIt 控制器映射，并保留 `use_real_i2c`、`i2c_device`、`i2c_address` 参数透传。
+
+结构反思：阶段 16 让 MoveIt 直接接到真实 controller-manager，但仍不把 task/perception 混进来。这样真实规划和真实执行的问题能单独被看见。
+
+验证记录：2026-08-21 `edgepick_bringup` 构建通过；`bringup_config_test` 现在覆盖 14 项检查；`edgepick_moveit_real.launch.py --show-args` 通过，参数包含 `publish_frequency`、`use_real_i2c`、`i2c_device`、`i2c_address` 和 `use_rviz`。
+
+### 阶段 17：real MoveIt 最小关节验证
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_moveit_real_validation.launch.py`，在阶段 16 的 real control + MoveGroup 基础上追加一个最小关节验证节点。
+
+完成内容：launch 暴露最小目标关节索引、角度增量、规划时间、重试次数、稳定等待和回零容差参数；节点先抓取当前关节值，再对单个关节做小幅度前进，最后回到捕获的 home 状态。
+
+结构反思：阶段 17 不再增加新的通用启动层，而是把“MoveIt 规划是否能稳定执行”和“回零是否仍然可控”合成一个最小验证动作。
+
+验证记录：待在真实 DOFBOT 上执行阶段 17 launch，并记录规划成功、执行成功和回零误差。
+
+### 阶段 18：真实目标检测桥接
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_detection.launch.py`，把本机 COCO 橘子 detector 和阶段 9 的 `detected_target_candidate_node` 接到同一条检测契约，同时保留厂商 YOLO 垃圾分类入口作为参考。
+
+完成内容：橘子 launch 暴露 `image_topic`、`model_path`、`config_path`、`label_path`、`target_label`、`conf_threshold`、`max_detections`，以及后续深度投影所需的 `depth_topic` 和 `camera_info_topic`。
+
+结构反思：bringup 这里仍只做编排。真实视觉模型和 RGB-D 投影之间通过 `/edgepick/perception/detections` 交接，目标对象必须和任务语义一致。
+
+验证记录：2026-08-22 `edgepick_bringup` 构建和静态测试通过；`ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py --show-args` 成功展开新参数；`ros2 pkg executables edgepick_perception` 可见 `edgepick_coco_detector_node.py`。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -183,4 +233,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 16：真实 MoveIt + real control 联动验证，先用最小关节目标确认规划到执行闭环。
+阶段 19：把橘子检测结果接入任务/抓取联调，并继续做真机链路观测。

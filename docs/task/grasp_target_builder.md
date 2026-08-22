@@ -65,4 +65,4 @@ ros2 topic echo /edgepick/task/grasp_pose --once
 
 ## 下一步
 
-阶段 14 已完成显式 real I2C 后端接入，默认仍保持 mock-safe。阶段 15 将在真实 DOFBOT 上做低速单关节验证。
+阶段 18：把橘子检测结果接进现有抓取目标链路后，再决定是否进入真实抓取联调。

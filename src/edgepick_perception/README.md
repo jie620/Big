@@ -12,6 +12,8 @@ EdgePick 的 RGB-D 感知基础包。阶段 8 先实现相机内参、深度采�
 - `src/rgbd_target_candidate_node.cpp`：ROS 2 节点，订阅 depth image 与 camera info，发布目标候选点和可选任务事件。
 - `src/detected_target_candidate_node.cpp`：订阅检测结果、depth image 和 camera info，发布检测框驱动的三维候选点。
 - `src/mock_detector_node.cpp`：发布可配置 mock 检测框，用于无模型验证阶段 9 链路。
+- `scripts/edgepick_yolo_detector_node.py`：读取真实相机图像并发布厂商 YOLO 检测结果，保留给垃圾分类模型。
+- `scripts/edgepick_coco_detector_node.py`：读取真实相机图像并发布 COCO 检测结果，当前用于橘子目标。
 - `src/mock_rgbd_source_node.cpp`：发布固定 depth image 和 camera info，用于阶段 13 rehearsal。
 - `src/perception_metrics_node.cpp`：旁路发布感知链路延迟、稳定性和事件计数。
 - `src/target_frame_transform_node.cpp`：把相机坐标目标点转换到机器人规划 frame。
@@ -39,6 +41,14 @@ source /opt/ros/humble/setup.bash
 source /home/jetson/dofbot_pro_ws/install/setup.bash
 source install/setup.bash
 ros2 run edgepick_perception rgbd_target_candidate_node
+```
+
+```bash
+ros2 run edgepick_perception edgepick_yolo_detector_node.py
+```
+
+```bash
+ros2 run edgepick_perception edgepick_detection_viewer_node.py
 ```
 
 默认使用 depth 图像中心点作为临时目标像素。后续 Stage 9 会由检测/分割结果提供目标像素。
@@ -99,6 +109,16 @@ ros2 run edgepick_perception rgbd_target_candidate_node
 
 验证记录：`mock_rgbd_source_test` 覆盖内参和深度图构造；2026-08-19 五包测试汇总为 90 tests、0 errors、0 failures、0 skipped；短时启动 rehearsal launch 后 metrics 显示 `target_points=50`、`target_acquired_events=1`。
 
+### 阶段 18：真实目标检测桥接
+
+当前阶段：新增 `scripts/edgepick_yolo_detector_node.py` 和 `scripts/edgepick_coco_detector_node.py`，分别承接厂商垃圾分类 YOLO 和橘子目标 COCO 检测，再由 `edgepick_detected_target_candidate_node` 继续做筛选和 RGB-D 投影。
+
+完成内容：YOLO 分支继续读取厂商 `best.engine`；COCO 分支读取本机 `frozen_inference_graph.pb` 和 `object_detection_coco.txt`，默认筛选 `orange`。两条分支都按框发布 `class_id`、`label`、`score`、中心像素和框尺寸；下游仍保持阶段 9 的检测选择契约不变。
+
+结构反思：目标检测必须跟任务对象对齐。垃圾分类模型可以保留作参考，但橘子抓取链路应走 COCO 橘子入口，避免把任务语义和模型语义混在一起。
+
+验证记录：2026-08-22 该包构建通过；`ros2 pkg executables edgepick_perception` 识别到 `edgepick_yolo_detector_node.py` 和 `edgepick_coco_detector_node.py`；`edgepick_bringup/edgepick_orange_detection.launch.py --show-args` 成功展开橘子检测参数。待在真实 Jetson 上接相机后补充 `/edgepick/perception/detections` 实测。
+
 ## 下一步目标
 
-阶段 14：真实硬件接入时继续让 perception 包只发布感知结果，不直接触碰硬件控制。
+阶段 19：把橘子检测结果稳定接到任务/抓取联调，并继续做真机链路观测。

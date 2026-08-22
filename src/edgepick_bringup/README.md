@@ -15,6 +15,8 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `launch/edgepick_moveit_real_validation.launch.py`：启动 real MoveIt 并执行阶段 17 的最小关节验证。
 - `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
 - `launch/edgepick_detection_perception_mock.launch.py`：启动 mock detector 和检测框驱动的 RGB-D 候选点节点。
+- `launch/edgepick_orange_detection.launch.py`：启动 COCO 橘子 detector 和检测框驱动的 RGB-D 候选点节点。
+- `launch/edgepick_yolo_detection.launch.py`：启动真实 YOLO detector 和检测框驱动的 RGB-D 候选点节点。
 - `launch/edgepick_perception_metrics.launch.py`：启动检测链路量测入口，可选 rosbag 回放。
 - `launch/edgepick_mock_grasp_target.launch.py`：启动 mock-safe 抓取/预抓取目标构造节点。
 - `launch/edgepick_prehardware_mock_rehearsal.launch.py`：启动真实硬件前系统级 mock rehearsal。
@@ -81,6 +83,18 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_rgbd_pe
 
 ```bash
 ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detection_perception_mock.launch.py
+```
+
+验证 COCO 橘子到 RGB-D 候选点链路：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py
+```
+
+如果要看画面和检测框：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py show_viewer:=true
 ```
 
 ## 阶段记录
@@ -219,6 +233,16 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_detecti
 
 验证记录：待在真实 DOFBOT 上执行阶段 17 launch，并记录规划成功、执行成功和回零误差。
 
+### 阶段 18：真实目标检测桥接
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_detection.launch.py`，把本机 COCO 橘子 detector 和阶段 9 的 `detected_target_candidate_node` 接到同一条检测契约，同时保留厂商 YOLO 垃圾分类入口作为参考。
+
+完成内容：橘子 launch 暴露 `image_topic`、`model_path`、`config_path`、`label_path`、`target_label`、`conf_threshold`、`max_detections`，以及后续深度投影所需的 `depth_topic` 和 `camera_info_topic`。
+
+结构反思：bringup 这里仍只做编排。真实视觉模型和 RGB-D 投影之间通过 `/edgepick/perception/detections` 交接，目标对象必须和任务语义一致。
+
+验证记录：2026-08-22 `edgepick_bringup` 构建和静态测试通过；`ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py --show-args` 成功展开新参数；`ros2 pkg executables edgepick_perception` 可见 `edgepick_coco_detector_node.py`。
+
 ## 下一步目标
 
-阶段 17：从 MoveIt 发送最小关节目标并确认规划、执行和回零稳定完成。
+阶段 19：继续观测橘子检测桥接和真机参数收敛，并为任务/抓取联调保留启动编排边界。
