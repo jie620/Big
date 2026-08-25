@@ -65,9 +65,21 @@ TEST(MockTaskScriptTest, ListsAvailableScenariosForLaunchParameters)
 {
   const auto names = valid_mock_task_scenarios();
 
-  EXPECT_EQ(names.size(), 7U);
+  EXPECT_EQ(names.size(), 8U);
   EXPECT_EQ(names.front(), "success");
   EXPECT_EQ(names.back(), "system_rehearsal_success");
+}
+
+TEST(MockTaskScriptTest, StartOnlyScenarioPublishesOnlyStartRequested)
+{
+  MockTaskScript script = make_mock_task_script("start_only");
+  GraspStateMachine machine;
+
+  ASSERT_EQ(script.next_event_for_state(machine.state()), TaskEvent::kStartRequested);
+  machine.handle(TaskEvent::kStartRequested);
+
+  EXPECT_TRUE(script.complete());
+  EXPECT_EQ(machine.state(), TaskState::kPerceiving);
 }
 
 TEST(MockTaskScriptTest, SystemRehearsalLeavesPerceptionAndMoveItToExternalAdapters)

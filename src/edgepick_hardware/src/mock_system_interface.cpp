@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <stdexcept>
+#include <thread>
 
 #include "edgepick_hardware/dofbot_i2c_transport.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -71,6 +73,16 @@ hardware_interface::CallbackReturn MockSystemInterface::on_init(
 
   const bool use_real_i2c =
     parse_bool_parameter(parameter_or(hardware_info, "use_real_i2c", "false"));
+  use_real_i2c_ = use_real_i2c;
+
+  try {
+    const auto motion_time_text = parameter_or(hardware_info, "motion_time_ms", "30");
+    const auto motion_time_ms = std::stoll(motion_time_text);
+    motion_time_ = std::chrono::milliseconds{
+      std::clamp<long long>(motion_time_ms, 20, 30000)};
+  } catch (const std::exception &) {
+    return hardware_interface::CallbackReturn::ERROR;
+  }
 
   try {
     if (use_real_i2c) {
@@ -80,10 +92,12 @@ hardware_interface::CallbackReturn MockSystemInterface::on_init(
       const auto address_text = parameter_or(hardware_info, "i2c_address", "0x15");
       i2c_config.address = static_cast<std::uint8_t>(std::stoul(address_text, nullptr, 0));
       transport_ = std::make_unique<DofbotI2cTransport>(i2c_config);
+      i2c_transport_ = static_cast<DofbotI2cTransport *>(transport_.get());
       mock_transport_ = nullptr;
     } else {
       auto mock_transport = std::make_unique<MockTransport>();
       mock_transport_ = mock_transport.get();
+      i2c_transport_ = nullptr;
       transport_ = std::move(mock_transport);
     }
   } catch (const std::exception &) {
@@ -95,6 +109,27 @@ hardware_interface::CallbackReturn MockSystemInterface::on_init(
   GatewayConfig config;
   config.min_command_interval = std::chrono::milliseconds{20};
   gateway_.emplace(*transport_, config);
+
+  if (use_real_i2c_) {
+    bool read_succeeded = false;
+    for (int attempt = 1; attempt <= 5; ++attempt) {
+      if (read_real_servo_state(true)) {
+        read_succeeded = true;
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds{50});
+    }
+    if (!read_succeeded) {
+      std::fprintf(
+        stderr,
+        "edgepick_hardware: cannot initialize ros2_control without current servo feedback "
+        "from %s at address 0x%02x\n",
+        parameter_or(hardware_info, "i2c_device", "/dev/i2c-7").c_str(),
+        static_cast<unsigned int>(
+          std::stoul(parameter_or(hardware_info, "i2c_address", "0x15"), nullptr, 0)));
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+  }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -138,8 +173,16 @@ hardware_interface::return_type MockSystemInterface::read(
   const rclcpp::Time &,
   const rclcpp::Duration &)
 {
-  // No external hardware is sampled in the mock. State is updated in write()
-  // when the command gateway accepts a command.
+  if (use_real_i2c_) {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_real_read_at_ >= std::chrono::milliseconds{50}) {
+      // Keep the last valid feedback during a transient I2C miss. Do not write
+      // feedback into command_positions_rad_; those handles belong to the
+      // controller and must remain the desired command, not the measured state.
+      (void)read_real_servo_state(false);
+      last_real_read_at_ = now;
+    }
+  }
   return hardware_interface::return_type::OK;
 }
 
@@ -156,16 +199,17 @@ hardware_interface::return_type MockSystemInterface::write(
   last_write_status_ = status;
 
   if (status == CommandStatus::kAccepted) {
-    // A successful mock write makes joint state follow the controller command.
-    // This mirrors GenericSystem-style RViz behavior while still exercising the
-    // EdgePick command validation path.
-    const double period_seconds = seconds_from_period(period);
-    for (std::size_t index = 0; index < command_positions_rad_.size(); ++index) {
-      const double previous_position = state_positions_rad_[index];
-      state_positions_rad_[index] = command_positions_rad_[index];
-      state_velocities_rad_s_[index] =
-        period_seconds > 0.0 ? (state_positions_rad_[index] - previous_position) / period_seconds :
-        0.0;
+    if (mock_transport_) {
+      // Only the mock has perfect command feedback. Real state comes from
+      // servo reads in read(), so MoveIt cannot declare success prematurely.
+      const double period_seconds = seconds_from_period(period);
+      for (std::size_t index = 0; index < command_positions_rad_.size(); ++index) {
+        const double previous_position = state_positions_rad_[index];
+        state_positions_rad_[index] = command_positions_rad_[index];
+        state_velocities_rad_s_[index] =
+          period_seconds > 0.0 ?
+          (state_positions_rad_[index] - previous_position) / period_seconds : 0.0;
+      }
     }
     return hardware_interface::return_type::OK;
   }
@@ -276,23 +320,28 @@ JointCommand MockSystemInterface::build_command_from_ros_positions() const
 {
   JointCommand command;
   command.motion_time = motion_time_;
-  for (std::size_t index = 0; index < kJointCount; ++index) {
-    command.angles_deg[index] = ros_position_to_command_degrees(index, command_positions_rad_[index]);
-  }
+  RosPositions positions_rad{};
+  std::copy(command_positions_rad_.begin(), command_positions_rad_.end(), positions_rad.begin());
+  command.angles_deg = ros_positions_to_servo_degrees(positions_rad);
   return command;
 }
 
-double MockSystemInterface::ros_position_to_command_degrees(
-  std::size_t index,
-  double position_rad) const
+bool MockSystemInterface::read_real_servo_state(bool sync_command_positions)
 {
-  // Linear mapping is sufficient for mock control-chain validation. Real I2C
-  // enablement must replace or verify this with measured joint calibration.
-  const auto & calibration = kDefaultCalibration[index];
-  const double ros_span = calibration.ros_max_rad - calibration.ros_min_rad;
-  const double command_span = calibration.command_max_deg - calibration.command_min_deg;
-  return calibration.command_min_deg +
-         ((position_rad - calibration.ros_min_rad) / ros_span) * command_span;
+  if (!i2c_transport_) {
+    return false;
+  }
+  const auto angles = i2c_transport_->read_servo_angles();
+  if (!angles.has_value()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < kJointCount; ++index) {
+    state_positions_rad_[index] = servo_degree_to_ros_position(index, (*angles)[index]);
+    if (sync_command_positions) {
+      command_positions_rad_[index] = state_positions_rad_[index];
+    }
+  }
+  return true;
 }
 
 std::chrono::steady_clock::time_point MockSystemInterface::steady_time_from_ros_time(

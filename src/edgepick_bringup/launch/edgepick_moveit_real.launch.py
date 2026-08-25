@@ -27,6 +27,7 @@ def _edgepick_moveit_config():
                 "use_real_i2c": "true",
                 "i2c_device": "/dev/i2c-7",
                 "i2c_address": "0x15",
+                "motion_time_ms": "30",
             },
         )
         .trajectory_execution(file_path="config/moveit_controllers.yaml")
@@ -47,6 +48,7 @@ def generate_launch_description():
             "use_real_i2c": LaunchConfiguration("use_real_i2c"),
             "i2c_device": LaunchConfiguration("i2c_device"),
             "i2c_address": LaunchConfiguration("i2c_address"),
+            "motion_time_ms": LaunchConfiguration("motion_time_ms"),
         }.items(),
     )
 
@@ -86,6 +88,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_real_i2c", default_value="true"),
             DeclareLaunchArgument("i2c_device", default_value="/dev/i2c-7"),
             DeclareLaunchArgument("i2c_address", default_value="0x15"),
+            DeclareLaunchArgument("motion_time_ms", default_value="30"),
             DeclareLaunchArgument("use_rviz", default_value="false"),
             real_control,
             move_group,

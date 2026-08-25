@@ -91,7 +91,7 @@ def test_moveit_real_validation_launch_includes_minimal_execution_node():
     assert 'edgepick_moveit_real.launch.py' in launch_text
     assert 'executable="moveit_real_validation_node"' in launch_text
     assert 'move_group_name' in launch_text
-    assert 'test_joint_delta_rad' in launch_text
+    assert 'test_joint_delta_deg' in launch_text
     assert 'home_tolerance_rad' in launch_text
     assert 'validation_start_delay_sec' in launch_text
     assert "MoveItConfigsBuilder" in launch_text
@@ -174,6 +174,116 @@ def test_detection_perception_mock_launch_connects_detector_to_rgbd_projection()
     assert "/edgepick/task/event" in launch_text
     assert 'DeclareLaunchArgument("target_label", default_value="target")' in launch_text
     assert 'DeclareLaunchArgument("min_detection_score", default_value="0.50")' in launch_text
+
+
+def test_orange_detection_launch_exposes_task_state_gating_controls():
+    launch_file = package_source_dir() / "launch" / "edgepick_orange_detection.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'executable="edgepick_coco_detector_node.py"' in launch_text
+    assert 'executable="edgepick_detection_viewer_node.py"' in launch_text
+    assert 'executable="detected_target_candidate_node"' in launch_text
+    assert 'DeclareLaunchArgument("state_topic", default_value="/edgepick/task/state")' in launch_text
+    assert 'DeclareLaunchArgument("gate_events_by_task_state", default_value="false")' in launch_text
+    assert 'DeclareLaunchArgument("target_event_state", default_value="perceiving")' in launch_text
+    assert '"state_topic": LaunchConfiguration("state_topic")' in launch_text
+    assert '"gate_events_by_task_state": LaunchConfiguration("gate_events_by_task_state")' in launch_text
+    assert '"target_event_state": LaunchConfiguration("target_event_state")' in launch_text
+
+
+def test_orange_task_rehearsal_launch_wires_detection_to_task_chain():
+    launch_file = package_source_dir() / "launch" / "edgepick_orange_task_rehearsal.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'IncludeLaunchDescription' in launch_text
+    assert 'edgepick_orange_detection.launch.py' in launch_text
+    assert 'executable="target_frame_transform_node"' in launch_text
+    assert 'executable="grasp_target_builder_node"' in launch_text
+    assert 'executable="perception_metrics_node"' in launch_text
+    assert 'executable="task_node"' in launch_text
+    assert 'executable="mock_task_driver_node"' in launch_text
+    assert 'executable="moveit_action_adapter_node"' in launch_text
+    assert 'DeclareLaunchArgument("publish_camera_static_tf", default_value="false")' in launch_text
+    assert 'DeclareLaunchArgument("task_scenario", default_value="system_rehearsal_success")' in launch_text
+    assert '"gate_events_by_task_state": "true"' in launch_text
+    assert '"target_event_state": "perceiving"' in launch_text
+    assert 'DeclareLaunchArgument("use_mock_action_results", default_value="true")' in launch_text
+
+
+def test_orange_perception_validation_launch_wires_real_camera_perception_chain():
+    launch_file = package_source_dir() / "launch" / "edgepick_orange_perception_validation.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'IncludeLaunchDescription' in launch_text
+    assert 'edgepick_orange_detection.launch.py' in launch_text
+    assert 'executable="target_frame_transform_node"' in launch_text
+    assert 'executable="grasp_target_builder_node"' in launch_text
+    assert 'executable="perception_metrics_node"' in launch_text
+    assert 'DeclareLaunchArgument("publish_camera_static_tf", default_value="false")' in launch_text
+    assert 'DeclareLaunchArgument("target_frame", default_value="base_link")' in launch_text
+    assert '"gate_events_by_task_state": "false"' in launch_text
+    assert '"target_event_state": "perceiving"' in launch_text
+
+
+def test_orange_grasp_execution_launch_wires_real_grasp_chain():
+    launch_file = package_source_dir() / "launch" / "edgepick_orange_grasp_execution.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'IncludeLaunchDescription' in launch_text
+    assert 'edgepick_moveit_real.launch.py' in launch_text
+    assert 'edgepick_orange_detection.launch.py' in launch_text
+    assert 'executable="orange_grasp_executor_node"' in launch_text
+    assert 'executable="startup_pose_sequence_node"' in launch_text
+    assert 'executable="mock_task_driver_node"' in launch_text
+    assert '"scenario": LaunchConfiguration("task_scenario")' in launch_text
+    assert 'DeclareLaunchArgument("task_scenario", default_value="start_only")' in launch_text
+    assert 'gripper_action_name' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle1", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle2", default_value="165.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle3", default_value="18.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle4", default_value="0.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle5", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle6", default_value="30.0")' in launch_text
+    assert 'goal_position_tolerance_m' in launch_text
+    assert 'goal_orientation_tolerance_rad' in launch_text
+    assert 'workload_after_startup' in launch_text
+    assert 'startup_pose_start_delay_sec' in launch_text
+    assert 'post_startup_moveit_wait_sec' in launch_text
+    assert 'DeclareLaunchArgument("zero_servo_angle1", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("zero_servo_angle2", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("zero_servo_angle3", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("zero_servo_angle4", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("zero_servo_angle5", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("zero_servo_angle6", default_value="30.0")' in launch_text
+    assert 'restore_servo_angle2' in launch_text
+    assert 'startup_ready_topic' in launch_text
+    assert '"gate_events_by_task_state": "true"' in launch_text
+    assert '"target_event_state": "perceiving"' in launch_text
+
+
+def test_startup_pose_uses_direct_i2c_home_then_fixed_restore():
+    source_file = (
+        package_source_dir().parent
+        / "edgepick_task"
+        / "src"
+        / "startup_pose_sequence_node.cpp"
+    )
+    source_text = source_file.read_text(encoding="utf-8")
+
+    assert source_text.index('"zero/home"') < source_text.index('"fixed restore"')
+    assert "edgepick_hardware::DofbotI2cTransport" in source_text
+    assert "zero_servo_angles_deg_" in source_text
+    assert "restore_servo_angles_deg_" in source_text
+    assert "moveit::planning_interface::MoveGroupInterface" not in source_text
+    assert "move_gripper(" not in source_text
+
+    launch_file = package_source_dir() / "launch" / "edgepick_orange_grasp_execution.launch.py"
+    launch_text = launch_file.read_text(encoding="utf-8")
+    assert 'DeclareLaunchArgument("restore_servo_angle1", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle6", default_value="30.0")' in launch_text
+    assert 'real_moveit,' not in launch_text.split("return LaunchDescription", maxsplit=1)[1]
+    assert "workload_after_startup" in launch_text
+    assert "target_action=startup_pose_sequence" in launch_text
 
 
 def test_perception_metrics_launch_observes_real_or_bag_detection_chain():

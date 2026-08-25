@@ -59,4 +59,4 @@ ros2 run tf2_ros tf2_echo base_link camera_color_optical_frame
 
 ## 下一步
 
-阶段 18：橘子目标检测桥接与真机感知链路验证。
+阶段 22：补真实抓取后的对象级验证、恢复策略和重复抓取收敛。

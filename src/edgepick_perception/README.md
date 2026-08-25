@@ -121,4 +121,4 @@ ros2 run edgepick_perception edgepick_detection_viewer_node.py
 
 ## 下一步目标
 
-阶段 19：把橘子检测结果稳定接到任务/抓取联调，并继续做真机链路观测。
+阶段 20：先把橘子 perception 验稳，再继续往任务/抓取联调推进。

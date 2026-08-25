@@ -58,7 +58,7 @@ TEST(CommandGatewayTest, RejectsUnsafeMotionDurationWithoutWriting)
   MockTransport transport;
   CommandGateway gateway(transport);
   JointCommand command = valid_command();
-  command.motion_time = std::chrono::milliseconds{99};
+  command.motion_time = std::chrono::milliseconds{19};
 
   EXPECT_EQ(gateway.submit(command, Clock::time_point{}), CommandStatus::kInvalidDuration);
   EXPECT_TRUE(transport.writes().empty());

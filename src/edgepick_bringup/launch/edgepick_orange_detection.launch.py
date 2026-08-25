@@ -29,6 +29,8 @@ def generate_launch_description():
                 "conf_threshold": LaunchConfiguration("conf_threshold"),
                 "max_detections": LaunchConfiguration("max_detections"),
                 "publish_empty_frames": LaunchConfiguration("publish_empty_frames"),
+                "require_startup_ready": LaunchConfiguration("require_startup_ready"),
+                "startup_ready_topic": LaunchConfiguration("startup_ready_topic"),
             }
         ],
     )
@@ -53,6 +55,9 @@ def generate_launch_description():
                 "publish_task_events": LaunchConfiguration("publish_task_events"),
                 "publish_target_lost": LaunchConfiguration("publish_target_lost"),
                 "publish_event_once": LaunchConfiguration("publish_event_once"),
+                "state_topic": LaunchConfiguration("state_topic"),
+                "gate_events_by_task_state": LaunchConfiguration("gate_events_by_task_state"),
+                "target_event_state": LaunchConfiguration("target_event_state"),
             }
         ],
     )
@@ -95,6 +100,10 @@ def generate_launch_description():
             DeclareLaunchArgument("conf_threshold", default_value="0.40"),
             DeclareLaunchArgument("max_detections", default_value="20"),
             DeclareLaunchArgument("publish_empty_frames", default_value="true"),
+            DeclareLaunchArgument("require_startup_ready", default_value="false"),
+            DeclareLaunchArgument(
+                "startup_ready_topic", default_value="/edgepick/startup_pose/ready"
+            ),
             DeclareLaunchArgument("show_viewer", default_value="false"),
             DeclareLaunchArgument("window_name", default_value="edgepick_detection"),
             DeclareLaunchArgument("frame_scale", default_value="1.0"),
@@ -105,6 +114,9 @@ def generate_launch_description():
             DeclareLaunchArgument("publish_task_events", default_value="true"),
             DeclareLaunchArgument("publish_target_lost", default_value="true"),
             DeclareLaunchArgument("publish_event_once", default_value="true"),
+            DeclareLaunchArgument("state_topic", default_value="/edgepick/task/state"),
+            DeclareLaunchArgument("gate_events_by_task_state", default_value="false"),
+            DeclareLaunchArgument("target_event_state", default_value="perceiving"),
             coco_detector,
             detected_target_candidate,
             detection_viewer,

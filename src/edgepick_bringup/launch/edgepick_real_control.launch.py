@@ -32,6 +32,9 @@ def _robot_description():
                     " ",
                     "i2c_address:=",
                     LaunchConfiguration("i2c_address"),
+                    " ",
+                    "motion_time_ms:=",
+                    LaunchConfiguration("motion_time_ms"),
                 ]
             ),
             value_type=str,
@@ -83,6 +86,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_real_i2c", default_value="true"),
             DeclareLaunchArgument("i2c_device", default_value="/dev/i2c-7"),
             DeclareLaunchArgument("i2c_address", default_value="0x15"),
+            DeclareLaunchArgument("motion_time_ms", default_value="30"),
             robot_state_publisher,
             ros2_control_node,
             *spawners,

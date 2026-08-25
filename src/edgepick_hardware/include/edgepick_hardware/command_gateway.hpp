@@ -26,7 +26,10 @@ struct GatewayConfig
 {
   JointLimits joint_limits{};
   std::chrono::milliseconds min_command_interval{20};
-  std::chrono::milliseconds min_motion_time{100};
+  // Streamed trajectory points arrive about every 10-20 ms. The vendor
+  // controller must accept short moves so each point is not restarted by a
+  // much longer interpolation window.
+  std::chrono::milliseconds min_motion_time{20};
   std::chrono::milliseconds max_motion_time{30000};
   double duplicate_epsilon_deg{0.1};
 };

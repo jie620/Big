@@ -218,6 +218,36 @@ vendor/yahboom/      从本机厂商工作区提取的只读参考快照
 
 验证记录：2026-08-22 `edgepick_bringup` 构建和静态测试通过；`ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py --show-args` 成功展开新参数；`ros2 pkg executables edgepick_perception` 可见 `edgepick_coco_detector_node.py`。
 
+### 阶段 19：橘子任务 rehearsal
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_task_rehearsal.launch.py`，把橘子检测、目标点转换、抓取目标构造、task node、mock 驱动和 MoveIt mock 适配器串起来。
+
+完成内容：橘子 detection 继续复用阶段 9 的检测契约，同时让任务状态机和 MoveIt mock 成功路径一起跑通。
+
+结构反思：阶段 19 证明的是“真实目标类别”已经能接入任务编排，而不是只停在感知层。
+
+验证记录：2026-08-23 launch 和参数结构已补齐，待在真实 Jetson 上接相机后补充 `/edgepick/perception/detections`、`/edgepick/perception/target_point`、`/edgepick/task/state` 的实测。
+
+### 阶段 20：橘子 perception 验证
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_perception_validation.launch.py`，只保留橘子 detection、目标点投影、抓取目标构造和 metrics。
+
+完成内容：real camera 进入后，可以先把目标从检测框稳定变成 `/edgepick/perception/target_point_base` 和 `/edgepick/task/pregrasp_pose`、`/edgepick/task/grasp_pose`，不再混入任务闭环和 MoveIt 结果。
+
+结构反思：阶段 20 把“看见橘子”和“执行任务”拆开，先把 perception 验稳，再继续往任务层推进。
+
+验证记录：2026-08-23 新 launch 已加入仓库，参数结构通过静态检查，待真实相机接入后补 `/edgepick/perception/target_point_base` 和 pose 输出证据。
+
+### 阶段 21：橘子真实抓取执行
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_grasp_execution.launch.py`，把橘子 detection、目标点转换、抓取目标构造、task node、`start_only` 起步驱动和真实 MoveIt/夹爪执行接起来。
+
+完成内容：新增 `edgepick_task/orange_grasp_executor_node`，它订阅 `/edgepick/task/pregrasp_pose` 和 `/edgepick/task/grasp_pose`，用 `MoveGroupInterface` 走臂，并通过 `grip_group_controller/gripper_cmd` 开合夹爪，最后把 `plan_succeeded`、`execution_succeeded` 和 `verification_succeeded` 回灌给 task 状态机。
+
+结构反思：这一阶段开始真正触碰抓取动作本身，但仍把 perception、任务状态机和执行器拆开。这样失败时能区分是橘子没看准、目标点没转对、MoveIt 规划失败，还是夹爪执行失败。
+
+验证记录：代码和 launch 已加入仓库，待在真实 DOFBOT 上完成一次完整抓取并记录 `/edgepick/task/state`、`/edgepick/task/failure` 和 gripper action 结果。
+
 ## 复现命令
 
 在 ROS 2 Humble 终端中可复现构建和测试：
@@ -233,4 +263,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 19：把橘子检测结果接入任务/抓取联调，并继续做真机链路观测。
+阶段 22：补真实抓取后的对象级验证、恢复策略和重复抓取收敛。

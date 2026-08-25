@@ -13,6 +13,7 @@ find_package(rclcpp REQUIRED)
 add_library(${PROJECT_NAME} SHARED
   src/command_gateway.cpp
   src/dofbot_i2c_transport.cpp
+  src/dofbot_servo_mapping.cpp
   src/mock_system_interface.cpp
   src/mock_transport.cpp
 )

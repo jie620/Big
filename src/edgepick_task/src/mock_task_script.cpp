@@ -106,6 +106,13 @@ std::vector<MockTaskStep> moveit_adapter_success_steps()
   };
 }
 
+std::vector<MockTaskStep> start_only_steps()
+{
+  return {
+    {TaskState::kIdle, TaskEvent::kStartRequested, "mock_operator"},
+  };
+}
+
 std::vector<MockTaskStep> system_rehearsal_success_steps()
 {
   return {
@@ -174,6 +181,7 @@ std::vector<std::string> valid_mock_task_scenarios()
     "execution_recovery",
     "verification_recovery",
     "moveit_success",
+    "start_only",
     "system_rehearsal_success",
   };
 }
@@ -198,6 +206,9 @@ MockTaskScript make_mock_task_script(const std::string & scenario_name)
   }
   if (key == "moveit_success") {
     return MockTaskScript{"moveit_success", moveit_adapter_success_steps()};
+  }
+  if (key == "start_only") {
+    return MockTaskScript{"start_only", start_only_steps()};
   }
   if (key == "system_rehearsal_success") {
     return MockTaskScript{"system_rehearsal_success", system_rehearsal_success_steps()};

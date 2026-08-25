@@ -107,7 +107,7 @@ TEST(MockSystemInterfaceTest, WritesValidCommandsThroughGatewayAndUpdatesState)
     hardware_interface::return_type::OK);
   ASSERT_EQ(system.writes().size(), 1U);
   EXPECT_EQ(system.last_write_status(), CommandStatus::kAccepted);
-  EXPECT_NEAR(system.writes().front().command.angles_deg[0], 95.72956455309398, 1e-6);
+  EXPECT_NEAR(system.writes().front().command.angles_deg[0], 95.72957795130823, 1e-9);
   EXPECT_NEAR(state_interfaces[0].get_value(), 0.1, 1e-12);
   EXPECT_NEAR(state_interfaces[1].get_value(), 1.0, 1e-12);
 }
@@ -118,18 +118,45 @@ TEST(MockSystemInterfaceTest, ConvertsDofbotMoveItRangesToServoDegrees)
   ASSERT_EQ(system.on_init(valid_hardware_info()), hardware_interface::CallbackReturn::SUCCESS);
   auto command_interfaces = system.export_command_interfaces();
 
-  command_interfaces[0].set_value(-1.5708);
-  command_interfaces[4].set_value(3.1416);
-  command_interfaces[5].set_value(-1.6);
+  command_interfaces[0].set_value(-std::acos(-1.0) / 2.0);
+  command_interfaces[4].set_value(std::acos(-1.0));
+  command_interfaces[5].set_value(-std::acos(-1.0) / 2.0);
 
   EXPECT_EQ(
     system.write(ros_time_ms(100), period_ms(100)),
     hardware_interface::return_type::OK);
   ASSERT_EQ(system.writes().size(), 1U);
   const auto & command = system.writes().front().command;
-  EXPECT_NEAR(command.angles_deg[0], 0.0, 1e-9);
-  EXPECT_NEAR(command.angles_deg[4], 270.0, 1e-9);
-  EXPECT_NEAR(command.angles_deg[5], 0.0, 1e-9);
+  EXPECT_NEAR(command.angles_deg[0], 0.0, 1e-3);
+  EXPECT_NEAR(command.angles_deg[4], 270.0, 1e-3);
+  EXPECT_NEAR(command.angles_deg[5], 180.0, 1e-3);
+}
+
+TEST(MockSystemInterfaceTest, ConvertsVendorDegreePoseThroughMoveItCommandPath)
+{
+  MockSystemInterface system;
+  ASSERT_EQ(system.on_init(valid_hardware_info()), hardware_interface::CallbackReturn::SUCCESS);
+  auto command_interfaces = system.export_command_interfaces();
+
+  const double deg_to_rad = std::acos(-1.0) / 180.0;
+  command_interfaces[0].set_value(0.0);
+  command_interfaces[1].set_value(75.0 * deg_to_rad);
+  command_interfaces[2].set_value(-72.0 * deg_to_rad);
+  command_interfaces[3].set_value(-90.0 * deg_to_rad);
+  command_interfaces[4].set_value(0.0);
+  command_interfaces[5].set_value(0.0);
+
+  EXPECT_EQ(
+    system.write(ros_time_ms(100), period_ms(100)),
+    hardware_interface::return_type::OK);
+  ASSERT_EQ(system.writes().size(), 1U);
+  const auto & command = system.writes().front().command;
+  EXPECT_NEAR(command.angles_deg[0], 90.0, 1e-9);
+  EXPECT_NEAR(command.angles_deg[1], 165.0, 1e-9);
+  EXPECT_NEAR(command.angles_deg[2], 18.0, 1e-9);
+  EXPECT_NEAR(command.angles_deg[3], 0.0, 1e-9);
+  EXPECT_NEAR(command.angles_deg[4], 90.0, 1e-9);
+  EXPECT_NEAR(command.angles_deg[5], 30.0, 1e-9);
 }
 
 TEST(MockSystemInterfaceTest, RateLimitedCommandsDoNotBecomeHardwareErrors)

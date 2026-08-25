@@ -1,6 +1,6 @@
 # edgepick_task
 
-EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段 5 增加 ROS 2 task node；阶段 6 增加 mock 闭环驱动；阶段 7 增加 MoveIt action 适配层；阶段 12 增加 mock 抓取目标构造；阶段 17 增加最小 MoveIt 真机验证节点。除了这个验证入口以外，任务逻辑仍不直接承担真实抓取控制。
+EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段 5 增加 ROS 2 task node；阶段 6 增加 mock 闭环驱动；阶段 7 增加 MoveIt action 适配层；阶段 12 增加 mock 抓取目标构造；阶段 17 增加最小 MoveIt 真机验证节点；阶段 21 增加真实橘子抓取执行节点。除了这些验证和执行入口以外，任务逻辑仍不直接承担其他硬件控制。
 
 ## 结构
 
@@ -16,6 +16,7 @@ EdgePick 的任务逻辑包。阶段 4 先实现纯 C++ 抓取状态机；阶段
 - `src/mock_task_driver_node.cpp`：ROS 2 mock 驱动节点，根据任务状态自动发布下一步事件。
 - `src/moveit_action_adapter_node.cpp`：ROS 2 MoveIt action 适配节点，将规划/执行结果发布为任务事件。
 - `src/moveit_real_validation_node.cpp`：最小真实 MoveIt 验证节点，做单关节小步前进和回零检查。
+- `src/orange_grasp_executor_node.cpp`：真实橘子抓取执行节点，驱动 MoveIt 和夹爪完成完整抓取动作。
 - `src/moveit_action_event_mapper.cpp`：可单测的 action outcome 到 `TaskEvent` 映射。
 - `src/task_event_io.cpp`：统一维护 ROS topic、CLI 示例和测试共用的事件词表。
 - `src/task_node.cpp`：ROS 2 节点，订阅任务事件并发布状态、失败原因和 diagnostics。
@@ -105,6 +106,7 @@ planning_recovery
 execution_recovery
 verification_recovery
 moveit_success
+start_only
 system_rehearsal_success
 ```
 
@@ -202,6 +204,29 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_moveit_
 
 验证记录：待在真实 DOFBOT 上运行阶段 17 validation launch，并记录规划、执行和回零误差。
 
+### 阶段 21：真实橘子抓取执行节点
+
+当前阶段：新增 `orange_grasp_executor_node`，在真实 MoveIt 和真实夹爪控制器上执行一次完整抓取。
+
+完成内容：节点订阅 `/edgepick/task/pregrasp_pose` 和 `/edgepick/task/grasp_pose`，先移动到预抓取位姿，再打开夹爪、接近抓取位姿、关闭夹爪、回撤，并把任务事件回灌到 `task_node`。
+
+结构反思：阶段 21 终于把任务层推进到真实抓取动作，但仍保留 perception、task、MoveIt 和夹爪四层分离。这样问题定位仍然清楚，不会把所有东西压成一个黑盒。
+
+验证记录：节点和 launch 已加入仓库，待真实 DOFBOT 完成一次完整抓取并补充事件轨迹。
+
+### 阶段 21.1：启动姿态恢复顺序修正
+
+问题：启动姿态节点原先先等待夹爪 action，再执行机械臂归零和默认姿态。夹爪 action 不可用时，机械臂会停在控制器启动的全 0 状态。
+
+修正：启动时先执行机械臂 `zero -> default`，再执行夹爪 `open -> default`。每个阶段都会输出开始和结果日志；夹爪 action 的默认等待时间缩短为 5 秒，避免阻塞机械臂恢复。
+
+### 阶段 21.2：启动闸门与直接舵机角度恢复
+
+问题：之前默认姿态使用 ROS 弧度间接表达，且橘子检测节点在启动姿态完成前就已经启动，导致恢复动作和检测时序都不符合真机要求。
+
+修正：启动节点先执行原有 MoveIt 全零动作，再把直观的舵机角度
+`[90, 165, 18, 0, 90, 30]` 转成 MoveIt 目标并通过同一条 `ros2_control` 链路执行。启动姿态进程成功退出后，launch 才启动橘子 detector、深度候选、TF 和目标构造链路。
+
 ## 下一步目标
 
-阶段 18：先把橘子检测结果稳定接到任务链路，再决定是否进入真实抓取联调。
+阶段 22：补真实抓取后的对象级验证、恢复策略和重复抓取收敛。

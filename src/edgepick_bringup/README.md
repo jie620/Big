@@ -16,6 +16,9 @@ EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真�
 - `launch/edgepick_moveit_action_mock.launch.py`：启动 task node、mock 感知/验证驱动和 MoveIt action 适配器。
 - `launch/edgepick_detection_perception_mock.launch.py`：启动 mock detector 和检测框驱动的 RGB-D 候选点节点。
 - `launch/edgepick_orange_detection.launch.py`：启动 COCO 橘子 detector 和检测框驱动的 RGB-D 候选点节点。
+- `launch/edgepick_orange_task_rehearsal.launch.py`：启动橘子检测、任务 rehearsal 和 MoveIt mock 适配器。
+- `launch/edgepick_orange_perception_validation.launch.py`：只验证橘子 detection、目标点投影和抓取位姿构造。
+- `launch/edgepick_orange_grasp_execution.launch.py`：启动橘子 detection、真实 MoveIt、夹爪执行和完整抓取链路。
 - `launch/edgepick_yolo_detection.launch.py`：启动真实 YOLO detector 和检测框驱动的 RGB-D 候选点节点。
 - `launch/edgepick_perception_metrics.launch.py`：启动检测链路量测入口，可选 rosbag 回放。
 - `launch/edgepick_mock_grasp_target.launch.py`：启动 mock-safe 抓取/预抓取目标构造节点。
@@ -96,6 +99,15 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_
 ```bash
 ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py show_viewer:=true
 ```
+
+验证真实橘子抓取执行：
+
+```bash
+ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_grasp_execution.launch.py
+```
+
+该入口启动后会先执行原来的全 0 ROS/MoveIt 姿态，再恢复现场默认舵机姿态
+`[90, 165, 18, 0, 90, 30]`，完成后才允许橘子抓取执行器继续。
 
 ## 阶段记录
 
@@ -243,6 +255,36 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_
 
 验证记录：2026-08-22 `edgepick_bringup` 构建和静态测试通过；`ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_detection.launch.py --show-args` 成功展开新参数；`ros2 pkg executables edgepick_perception` 可见 `edgepick_coco_detector_node.py`。
 
+### 阶段 19：橘子任务 rehearsal
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_task_rehearsal.launch.py`，把橘子 detection、目标点转换、抓取目标构造、task node、mock 驱动和 MoveIt mock 适配器串成一条可跑通的 rehearsal 链。
+
+完成内容：launch 继续沿用阶段 18 的橘子 detector，同时保留 `show_viewer`、TF 和任务事件编排入口，方便把真实橘子接到 mock 成功路径。
+
+结构反思：阶段 19 证明真实目标类别可以进入任务编排，但不把真机动作和检测一起调。
+
+验证记录：2026-08-23 launch 代码已加入仓库，待真实相机接入后补充 perception、task 和 mock MoveIt 的联合验证。
+
+### 阶段 20：橘子 perception 验证
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_perception_validation.launch.py`，只保留橘子 detection、目标点投影、抓取位姿构造和 metrics。
+
+完成内容：launch 只负责把真实相机中的橘子变成 `/edgepick/perception/target_point_base` 和 `/edgepick/task/pregrasp_pose`、`/edgepick/task/grasp_pose`，不混入任务闭环。
+
+结构反思：阶段 20 先把 perception 验稳，再继续往任务和 MoveIt 推进。
+
+验证记录：2026-08-23 launch 代码已加入仓库，待真实相机接入后补充输出验证。
+
+### 阶段 21：橘子真实抓取执行
+
+当前阶段：`edgepick_bringup` 新增 `edgepick_orange_grasp_execution.launch.py`，把橘子 detection、TF、抓取位姿、task node、`start_only` 驱动和真实 MoveIt/夹爪执行串起来。
+
+完成内容：launch 负责把真实 perception 结果接入 `orange_grasp_executor_node`，并透传 real MoveIt 的 `use_real_i2c`、`i2c_device`、`i2c_address` 和 `use_rviz` 参数。
+
+结构反思：阶段 21 不再只是验证 perception，而是把 perception 验证结果真正送进臂和夹爪动作。失败时可以直接从 task 状态和 gripper action 分辨问题。
+
+验证记录：launch 与配置测试已加入仓库，待真实 DOFBOT 上完成一次完整抓取。
+
 ## 下一步目标
 
-阶段 19：继续观测橘子检测桥接和真机参数收敛，并为任务/抓取联调保留启动编排边界。
+阶段 22：补真实抓取后的对象级验证、恢复策略和重复抓取收敛。

@@ -22,7 +22,15 @@ public:
     return accept_writes;
   }
 
+  std::optional<std::uint16_t> read_word(
+    std::uint8_t,
+    std::uint8_t) override
+  {
+    return read_value;
+  }
+
   bool accept_writes{true};
+  std::optional<std::uint16_t> read_value{0x0001};
   std::vector<I2cBlockWrite> writes;
 };
 

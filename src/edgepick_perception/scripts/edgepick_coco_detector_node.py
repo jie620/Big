@@ -9,8 +9,9 @@ import rclpy
 from cv_bridge import CvBridge
 from edgepick_interfaces.msg import TargetDetection, TargetDetectionArray
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Image
+from std_msgs.msg import String
 
 
 DEFAULT_MODEL_PATH = "/home/jetson/dofbot_pro_ws/src/dofbot_pro_vision/config/frozen_inference_graph.pb"
@@ -36,12 +37,28 @@ class CocoDetectorNode(Node):
         self.publish_empty_frames = bool(
             self.declare_parameter("publish_empty_frames", True).value
         )
+        self.require_startup_ready = bool(
+            self.declare_parameter("require_startup_ready", False).value
+        )
+        self.startup_ready = not self.require_startup_ready
+        self.startup_ready_topic = self.declare_parameter(
+            "startup_ready_topic", "/edgepick/startup_pose/ready"
+        ).value
 
         self.bridge = CvBridge()
         self.publisher = self.create_publisher(TargetDetectionArray, self.detections_topic, 10)
         self.subscription = self.create_subscription(
             Image, self.image_topic, self.on_image, qos_profile_sensor_data
         )
+        if self.require_startup_ready:
+            startup_qos = QoSProfile(
+                depth=1,
+                reliability=ReliabilityPolicy.RELIABLE,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            )
+            self.startup_subscription = self.create_subscription(
+                String, self.startup_ready_topic, self.on_startup_ready, startup_qos
+            )
         self.class_names = self._load_class_names(Path(self.label_path))
         self.model = self._load_model(Path(self.model_path), Path(self.config_path))
 
@@ -72,6 +89,9 @@ class CocoDetectorNode(Node):
             return None
 
     def on_image(self, message: Image) -> None:
+        if not self.startup_ready:
+            return
+
         detections = TargetDetectionArray()
         detections.header.stamp = message.header.stamp
         detections.header.frame_id = self.frame_id_override or message.header.frame_id
@@ -97,6 +117,13 @@ class CocoDetectorNode(Node):
             return
 
         self.publisher.publish(detections)
+
+    def on_startup_ready(self, message: String) -> None:
+        if message.data == "ready":
+            self.startup_ready = True
+            self.get_logger().info(
+                f"Startup pose ready; beginning detection on '{self.image_topic}'."
+            )
 
     def _convert_output(self, output, image_width: int, image_height: int) -> list[TargetDetection]:
         candidates: list[TargetDetection] = []

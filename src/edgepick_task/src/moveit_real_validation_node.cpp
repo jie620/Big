@@ -7,6 +7,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <moveit/move_group_interface/move_group_interface.h>
@@ -22,7 +23,8 @@ public:
   {
     move_group_name_ = declare_parameter<std::string>("move_group_name", "arm_group");
     test_joint_index_ = std::max(0, static_cast<int>(declare_parameter<int>("test_joint_index", 0)));
-    test_joint_delta_rad_ = declare_parameter<double>("test_joint_delta_rad", 0.05);
+    test_joint_delta_deg_ = std::max(0.0, declare_parameter<double>("test_joint_delta_deg", 5.0));
+    test_joint_delta_rad_ = test_joint_delta_deg_ * kPi / 180.0;
     planning_time_sec_ = std::max(0.1, declare_parameter<double>("planning_time_sec", 5.0));
     planning_attempts_ =
       std::max(1, static_cast<int>(declare_parameter<int>("planning_attempts", 10)));
@@ -38,8 +40,10 @@ public:
 
     RCLCPP_INFO(
       get_logger(),
-      "Stage 17 validation ready: group=%s joint_index=%d joint_delta=%.4f home_tolerance=%.4f",
-      move_group_name_.c_str(), test_joint_index_, test_joint_delta_rad_, home_tolerance_rad_);
+      "Stage 17 validation ready: group=%s joint_index=%d joint_delta=%.2f deg (%.4f rad) "
+      "home_tolerance=%.4f",
+      move_group_name_.c_str(), test_joint_index_, test_joint_delta_deg_, test_joint_delta_rad_,
+      home_tolerance_rad_);
   }
 
   int run()
@@ -217,8 +221,11 @@ private:
     return std::clamp(value, 0.01, 1.0);
   }
 
+  static constexpr double kPi = 3.14159265358979323846;
+
   std::string move_group_name_;
   int test_joint_index_{0};
+  double test_joint_delta_deg_{5.0};
   double test_joint_delta_rad_{0.05};
   double planning_time_sec_{5.0};
   int planning_attempts_{10};
@@ -237,7 +244,19 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   const auto node = std::make_shared<edgepick_task::MoveItRealValidationNode>();
+
+  // MoveGroupInterface depends on ROS callbacks for joint-state monitoring and
+  // FollowJointTrajectory action feedback. The validation run is synchronous,
+  // so provide a dedicated executor thread while it plans and executes.
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(node);
+  std::thread spin_thread([&executor]() { executor.spin(); });
+
   const int exit_code = node->run();
+  executor.cancel();
+  if (spin_thread.joinable()) {
+    spin_thread.join();
+  }
   rclcpp::shutdown();
   return exit_code;
 }

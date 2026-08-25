@@ -180,6 +180,30 @@
 
 结构反思：阶段 18 继续保持“检测结果契约”和“任务/执行链路”分离，避免为了换目标类别就改消息协议。
 
+### 阶段 19：橘子任务 rehearsal
+
+当前阶段：新增 `docs/launch/orange_task_rehearsal.md`，记录 real orange detector 到 task/MoveIt mock rehearsal 的完整链路。
+
+完成内容：文档说明橘子 detection、target point、抓取目标和任务状态机可以一起跑通，但仍保持 mock 驱动和 mock action 结果。
+
+结构反思：阶段 19 先证明“橘子能进任务编排”，不急着把真机动作和任务判断混成一层。
+
+### 阶段 20：橘子 perception 验证
+
+当前阶段：新增 `docs/launch/orange_perception_validation.md`，记录 real camera 下只验证橘子 detection、目标点投影和抓取位姿构造。
+
+完成内容：文档把 perception 链路单独拎出来，方便把相机、检测、TF 和 grasp pose 的问题分开看。
+
+结构反思：阶段 20 将 perception 验证与任务/MoveIt 联调拆开，降低现场排障复杂度。
+
+### 阶段 21：橘子真实抓取执行
+
+当前阶段：新增 `docs/launch/orange_grasp_execution.md`，记录真实橘子 detection 进入 task、MoveIt 和夹爪执行器的完整抓取链路。
+
+完成内容：文档说明 `start_only` 驱动只负责起步，真实抓取由 `orange_grasp_executor_node` 完成，成功后会回灌 `plan_succeeded`、`execution_succeeded` 和 `verification_succeeded`。
+
+结构反思：阶段 21 把真实动作和 perception 验证正式接起来，但仍保持 task、perception 和执行层分离，便于失败定位。
+
 ## 下一步目标
 
-阶段 19：把橘子检测结果稳定接到任务/抓取联调，并继续做真机链路观测。
+阶段 22：补真实抓取后的对象级验证、恢复策略和重复抓取收敛。
