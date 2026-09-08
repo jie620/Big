@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -28,15 +29,16 @@ class TaskNode final : public rclcpp::Node
 public:
   TaskNode()
   : Node("edgepick_task_node"),
-    machine_(TaskConfig{static_cast<std::size_t>(declare_parameter<int>(
-      "max_recovery_attempts", 2))})
+    machine_(TaskConfig{static_cast<std::size_t>(std::max<long>(
+      0L, declare_parameter<int>("max_recovery_attempts", 2)))})
   {
     event_topic_ = declare_parameter<std::string>("event_topic", "/edgepick/task/event");
     state_topic_ = declare_parameter<std::string>("state_topic", "/edgepick/task/state");
     failure_topic_ = declare_parameter<std::string>("failure_topic", "/edgepick/task/failure");
     diagnostics_topic_ = declare_parameter<std::string>("diagnostics_topic", "/diagnostics");
 
-    state_publisher_ = create_publisher<std_msgs::msg::String>(state_topic_, 10);
+    state_publisher_ = create_publisher<std_msgs::msg::String>(
+      state_topic_, rclcpp::QoS(1).reliable().transient_local());
     failure_publisher_ = create_publisher<std_msgs::msg::String>(failure_topic_, 10);
     diagnostics_publisher_ =
       create_publisher<diagnostic_msgs::msg::DiagnosticArray>(diagnostics_topic_, 10);

@@ -8,6 +8,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(dofbot_pro_interface REQUIRED)
 find_package(edgepick_hardware REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
@@ -72,16 +73,25 @@ ament_target_dependencies(moveit_real_validation_node
   rclcpp
 )
 
+add_executable(moveit_zero_restore_validation_node
+  src/moveit_zero_restore_validation_node.cpp
+)
+target_link_libraries(moveit_zero_restore_validation_node ${PROJECT_NAME})
+ament_target_dependencies(moveit_zero_restore_validation_node
+  edgepick_hardware
+  moveit_ros_planning_interface
+  rclcpp
+)
+
 add_executable(orange_grasp_executor_node
   src/orange_grasp_executor_node.cpp
 )
 target_link_libraries(orange_grasp_executor_node ${PROJECT_NAME})
 ament_target_dependencies(orange_grasp_executor_node
-  control_msgs
+  dofbot_pro_interface
+  edgepick_hardware
   geometry_msgs
-  moveit_ros_planning_interface
   rclcpp
-  rclcpp_action
   std_msgs
 )
 
@@ -130,6 +140,7 @@ install(
     mock_task_driver_node
     moveit_action_adapter_node
     moveit_real_validation_node
+    moveit_zero_restore_validation_node
     orange_grasp_executor_node
     startup_pose_sequence_node
     servo_pose_command_node
@@ -156,8 +167,8 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_dependencies(
-  diagnostic_msgs edgepick_hardware geometry_msgs moveit_msgs moveit_ros_planning_interface rclcpp
-  rclcpp_action std_msgs
+  diagnostic_msgs dofbot_pro_interface edgepick_hardware geometry_msgs moveit_msgs
+  moveit_ros_planning_interface rclcpp rclcpp_action std_msgs
 )
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})

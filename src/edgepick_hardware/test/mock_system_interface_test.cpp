@@ -78,6 +78,14 @@ TEST(MockSystemInterfaceTest, RejectsConfigurationsWithoutSixJoints)
   EXPECT_EQ(system.on_init(info), hardware_interface::CallbackReturn::ERROR);
 }
 
+TEST(MockSystemInterfaceTest, RejectsPermutedServoOrder)
+{
+  auto info = valid_hardware_info();
+  std::swap(info.joints[0], info.joints[1]);
+  MockSystemInterface system;
+  EXPECT_EQ(system.on_init(info), hardware_interface::CallbackReturn::ERROR);
+}
+
 TEST(MockSystemInterfaceTest, ExportsPositionCommandsAndPositionVelocityStates)
 {
   MockSystemInterface system;
@@ -198,6 +206,14 @@ TEST(MockSystemInterfaceTest, ExplicitRealI2cEnablementRejectsMissingDevice)
 {
   MockSystemInterface system;
   EXPECT_EQ(system.on_init(real_i2c_hardware_info()), hardware_interface::CallbackReturn::ERROR);
+}
+
+TEST(MockSystemInterfaceTest, RejectsInvalidI2cAddressBeforeOpeningDevice)
+{
+  auto info = real_i2c_hardware_info();
+  info.hardware_parameters["i2c_address"] = "0x100";
+  MockSystemInterface system;
+  EXPECT_EQ(system.on_init(info), hardware_interface::CallbackReturn::ERROR);
 }
 
 }  // namespace

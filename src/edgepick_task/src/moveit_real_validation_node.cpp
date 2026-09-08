@@ -1,3 +1,4 @@
+#include "edgepick_task/joint_feedback.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -139,7 +140,9 @@ private:
   {
     for (int attempt = 1; attempt <= validation_attempts_; ++attempt) {
       move_group_->setStartStateToCurrentState();
-      move_group_->setJointValueTarget(target_joint_values);
+      if (!rclcpp::ok() || !move_group_->setJointValueTarget(target_joint_values)) {
+        return false;
+      }
 
       moveit::planning_interface::MoveGroupInterface::Plan plan;
       const auto plan_result = move_group_->plan(plan);
@@ -151,6 +154,9 @@ private:
         continue;
       }
 
+      if (!rclcpp::ok()) {
+        return false;
+      }
       const auto execute_result = move_group_->execute(plan);
       if (execute_result != moveit::core::MoveItErrorCode::SUCCESS) {
         RCLCPP_WARN(
@@ -198,20 +204,6 @@ private:
     return out.str();
   }
 
-  static double max_abs_error(
-    const std::vector<double> & expected,
-    const std::vector<double> & actual)
-  {
-    if (expected.size() != actual.size()) {
-      return std::numeric_limits<double>::infinity();
-    }
-
-    double max_error = 0.0;
-    for (std::size_t index = 0; index < expected.size(); ++index) {
-      max_error = std::max(max_error, std::abs(expected[index] - actual[index]));
-    }
-    return max_error;
-  }
 
   static double clamp_scaling(double value)
   {
@@ -252,7 +244,12 @@ int main(int argc, char ** argv)
   executor.add_node(node);
   std::thread spin_thread([&executor]() { executor.spin(); });
 
-  const int exit_code = node->run();
+  int exit_code = 1;
+  try {
+    exit_code = node->run();
+  } catch (const std::exception & error) {
+    RCLCPP_ERROR(node->get_logger(), "Validation failed: %s", error.what());
+  }
   executor.cancel();
   if (spin_thread.joinable()) {
     spin_thread.join();

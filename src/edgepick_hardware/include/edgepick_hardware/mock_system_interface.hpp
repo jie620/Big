@@ -75,6 +75,7 @@ private:
   DofbotI2cTransport * i2c_transport_{nullptr};
   MockTransport * mock_transport_{nullptr};
   bool use_real_i2c_{false};
+  bool feedback_failed_{false};
   std::chrono::steady_clock::time_point last_real_read_at_{};
   std::optional<CommandGateway> gateway_;
   std::optional<CommandStatus> last_write_status_;

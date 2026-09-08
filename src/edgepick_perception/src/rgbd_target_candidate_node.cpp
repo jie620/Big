@@ -41,12 +41,12 @@ public:
     target_publisher_ = create_publisher<geometry_msgs::msg::PointStamped>(target_topic, 10);
     event_publisher_ = create_publisher<std_msgs::msg::String>(event_topic, 10);
     camera_info_subscription_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-      camera_info_topic, 10,
+      camera_info_topic, rclcpp::SensorDataQoS(),
       [this](const sensor_msgs::msg::CameraInfo::SharedPtr message) {
         handle_camera_info(*message);
       });
     depth_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-      depth_topic, 10,
+      depth_topic, rclcpp::SensorDataQoS(),
       [this](const sensor_msgs::msg::Image::SharedPtr message) { handle_depth(*message); });
 
     RCLCPP_INFO(
@@ -59,6 +59,7 @@ private:
   {
     PinholeIntrinsics candidate = intrinsics_from_camera_info(message);
     if (!valid_intrinsics(candidate)) {
+      intrinsics_.reset();
       RCLCPP_WARN(get_logger(), "Ignoring invalid camera intrinsics.");
       return;
     }
@@ -74,16 +75,23 @@ private:
       return;
     }
 
-    const Pixel pixel = selected_pixel(message);
-    const auto depth_m = depth_meters_at(message, pixel, depth_range_);
-    if (!depth_m.has_value()) {
-      publish_event_if_enabled("target_lost", target_lost_event_sent_);
+    if (!depth_matches_intrinsics(message, *intrinsics_)) {
+      publish_target_lost_if_ready();
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+        "Depth and camera_info frame/resolution mismatch; skipping projection.");
       return;
     }
 
-    const auto point = project_pixel_to_3d(*intrinsics_, pixel, *depth_m);
+    const Pixel pixel = selected_pixel(message);
+    const auto depth_sample = depth_meters_near(message, pixel, depth_range_, 4);
+    if (!depth_sample.has_value()) {
+      publish_target_lost_if_ready();
+      return;
+    }
+
+    const auto point = project_pixel_to_3d(*intrinsics_, depth_sample->pixel, depth_sample->depth_m);
     if (!point.has_value()) {
-      publish_event_if_enabled("target_lost", target_lost_event_sent_);
+      publish_target_lost_if_ready();
       return;
     }
 
@@ -95,11 +103,12 @@ private:
     target.point.y = point->y;
     target.point.z = point->z;
     target_publisher_->publish(target);
+    saw_target_point_ = true;
     publish_event_if_enabled("target_acquired", target_acquired_event_sent_);
 
     RCLCPP_DEBUG(
       get_logger(), "Published target point at pixel=(%d,%d), xyz=(%.3f, %.3f, %.3f).",
-      pixel.u, pixel.v, point->x, point->y, point->z);
+      depth_sample->pixel.u, depth_sample->pixel.v, point->x, point->y, point->z);
   }
 
   Pixel selected_pixel(const sensor_msgs::msg::Image & message) const
@@ -112,6 +121,14 @@ private:
       pixel.v = target_pixel_v_;
     }
     return pixel;
+  }
+
+  void publish_target_lost_if_ready()
+  {
+    if (!saw_target_point_) {
+      return;
+    }
+    publish_event_if_enabled("target_lost", target_lost_event_sent_);
   }
 
   void publish_event_if_enabled(const std::string & event_name, bool & event_sent)
@@ -136,6 +153,7 @@ private:
   bool publish_task_events_{true};
   bool publish_target_lost_{true};
   bool publish_event_once_{true};
+  bool saw_target_point_{false};
   bool target_acquired_event_sent_{false};
   bool target_lost_event_sent_{false};
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr target_publisher_;

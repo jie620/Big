@@ -10,6 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>diagnostic_msgs</depend>
   <depend>control_msgs</depend>
+  <depend>dofbot_pro_interface</depend>
   <depend>edgepick_hardware</depend>
   <depend>geometry_msgs</depend>
   <depend>moveit_msgs</depend>

@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <string>
@@ -70,7 +71,7 @@ public:
     event_publisher_ = create_publisher<std_msgs::msg::String>(event_topic, 10);
     if (gate_events_by_task_state_) {
       state_subscription_ = create_subscription<std_msgs::msg::String>(
-        state_topic, 10,
+        state_topic, rclcpp::QoS(1).reliable().transient_local(),
         [this](const std_msgs::msg::String::SharedPtr message) {
           latest_task_state_ = message->data;
         });
@@ -82,12 +83,12 @@ public:
         handle_detections(*message);
       });
     camera_info_subscription_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-      camera_info_topic, 10,
+      camera_info_topic, rclcpp::SensorDataQoS(),
       [this](const sensor_msgs::msg::CameraInfo::SharedPtr message) {
         handle_camera_info(*message);
       });
     depth_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-      depth_topic, 10,
+      depth_topic, rclcpp::SensorDataQoS(),
       [this](const sensor_msgs::msg::Image::SharedPtr message) { handle_depth(*message); });
 
     RCLCPP_INFO(
@@ -106,15 +107,15 @@ private:
     }
 
     latest_detection_ = select_target_detection(candidates, selection_config_);
-    latest_detection_stamp_ = now();
+    latest_detection_stamp_ = rclcpp::Time(message.header.stamp);
+    latest_detection_frame_ = message.header.frame_id;
     if (!latest_detection_.has_value()) {
-      publish_event_if_enabled("target_lost", target_lost_event_sent_);
+      publish_target_lost_if_ready();
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "No detection matched target filters; waiting for a valid candidate.");
       return;
     }
-
     RCLCPP_DEBUG(
       get_logger(), "Selected detection label='%s' class_id=%u score=%.3f center=(%.1f, %.1f).",
       latest_detection_->label.c_str(), latest_detection_->class_id, latest_detection_->score,
@@ -125,6 +126,7 @@ private:
   {
     PinholeIntrinsics candidate = intrinsics_from_camera_info(message);
     if (!valid_intrinsics(candidate)) {
+      intrinsics_.reset();
       RCLCPP_WARN(get_logger(), "Ignoring invalid camera intrinsics.");
       return;
     }
@@ -145,22 +147,40 @@ private:
         "Depth image received before valid detection; skipping.");
       return;
     }
-    if (now() - latest_detection_stamp_ > rclcpp::Duration(max_detection_age_)) {
+    const auto depth_stamp = rclcpp::Time(message.header.stamp);
+    const auto age = now() - latest_detection_stamp_;
+    if (latest_detection_stamp_.nanoseconds() <= 0 || depth_stamp.nanoseconds() <= 0 ||
+      age.nanoseconds() < 0 || age > rclcpp::Duration(max_detection_age_) ||
+      std::abs((depth_stamp - latest_detection_stamp_).nanoseconds()) >
+      rclcpp::Duration(max_detection_age_).nanoseconds() ||
+      latest_detection_frame_.empty() || latest_detection_frame_ != message.header.frame_id)
+    {
       latest_detection_.reset();
-      publish_event_if_enabled("target_lost", target_lost_event_sent_);
+      publish_target_lost_if_ready();
+      return;
+    }
+
+    if (!depth_matches_intrinsics(message, *intrinsics_)) {
+      publish_target_lost_if_ready();
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+        "Depth and camera_info frame/resolution mismatch; skipping projection.");
       return;
     }
 
     const Pixel pixel = detection_center_pixel(*latest_detection_);
-    const auto depth_m = depth_meters_at(message, pixel, depth_range_);
-    if (!depth_m.has_value()) {
-      publish_event_if_enabled("target_lost", target_lost_event_sent_);
+    const auto depth_sample = depth_meters_near(message, pixel, depth_range_, 4);
+    if (!depth_sample.has_value()) {
+      publish_target_lost_if_ready();
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "No valid depth near detection center pixel=(%d,%d); waiting for a better sample.",
+        pixel.u, pixel.v);
       return;
     }
 
-    const auto point = project_pixel_to_3d(*intrinsics_, pixel, *depth_m);
+    const auto point = project_pixel_to_3d(*intrinsics_, depth_sample->pixel, depth_sample->depth_m);
     if (!point.has_value()) {
-      publish_event_if_enabled("target_lost", target_lost_event_sent_);
+      publish_target_lost_if_ready();
       return;
     }
 
@@ -172,11 +192,20 @@ private:
     target.point.y = point->y;
     target.point.z = point->z;
     target_publisher_->publish(target);
+    saw_target_point_ = true;
     publish_event_if_enabled("target_acquired", target_acquired_event_sent_);
 
     RCLCPP_DEBUG(
       get_logger(), "Published detected target at pixel=(%d,%d), xyz=(%.3f, %.3f, %.3f).",
-      pixel.u, pixel.v, point->x, point->y, point->z);
+      depth_sample->pixel.u, depth_sample->pixel.v, point->x, point->y, point->z);
+  }
+
+  void publish_target_lost_if_ready()
+  {
+    if (!saw_target_point_) {
+      return;
+    }
+    publish_event_if_enabled("target_lost", target_lost_event_sent_);
   }
 
   void publish_event_if_enabled(const std::string & event_name, bool & event_sent)
@@ -201,6 +230,7 @@ private:
   TargetDetectionSelectionConfig selection_config_;
   std::optional<TargetDetectionCandidate> latest_detection_;
   rclcpp::Time latest_detection_stamp_;
+  std::string latest_detection_frame_;
   std::chrono::milliseconds max_detection_age_{500};
   std::optional<PinholeIntrinsics> intrinsics_;
   DepthRange depth_range_;
@@ -210,6 +240,7 @@ private:
   bool gate_events_by_task_state_{false};
   std::string target_event_state_{"perceiving"};
   std::optional<std::string> latest_task_state_;
+  bool saw_target_point_{false};
   bool target_acquired_event_sent_{false};
   bool target_lost_event_sent_{false};
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr target_publisher_;

@@ -13,6 +13,8 @@
 namespace edgepick_hardware
 {
 
+std::uint8_t parse_i2c_address(const std::string & text);
+
 struct DofbotI2cConfig
 {
   std::string device{"/dev/i2c-7"};

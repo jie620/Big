@@ -10,6 +10,7 @@
 #include <linux/i2c.h>
 #include <stdexcept>
 #include <sys/ioctl.h>
+#include <sys/file.h>
 #include <thread>
 #include <unistd.h>
 
@@ -85,12 +86,27 @@ void close_fd(int & fd)
 
 }  // namespace
 
+std::uint8_t parse_i2c_address(const std::string & text)
+{
+  std::size_t consumed = 0;
+  const auto value = std::stoul(text, &consumed, 0);
+  if (consumed != text.size() || value < 0x08U || value > 0x77U) {
+    throw std::invalid_argument("i2c_address must be a complete number in 0x08..0x77");
+  }
+  return static_cast<std::uint8_t>(value);
+}
+
 LinuxI2cBlockBus::LinuxI2cBlockBus(std::string device)
 : device_(std::move(device))
 {
   fd_ = ::open(device_.c_str(), O_RDWR | O_CLOEXEC);
   if (fd_ < 0) {
     throw std::runtime_error("failed to open I2C device '" + device_ + "'");
+  }
+  // Cooperating EdgePick processes must not interleave the two-write servo frame.
+  if (::flock(fd_, LOCK_EX | LOCK_NB) < 0) {
+    close_fd(fd_);
+    throw std::runtime_error("I2C device is already owned or cannot be locked: " + device_);
   }
 }
 
@@ -181,7 +197,7 @@ std::optional<std::uint16_t> LinuxI2cBlockBus::read_word(
 DofbotI2cTransport::DofbotI2cTransport(DofbotI2cConfig config)
 : DofbotI2cTransport(
     config.enabled ? std::make_unique<LinuxI2cBlockBus>(config.device) : nullptr,
-    std::move(config))
+    config)
 {
 }
 
@@ -202,6 +218,9 @@ bool DofbotI2cTransport::write(const JointCommand & command)
   }
 
   const auto writes = encode_command(command, config_.address);
+  if (writes.empty()) {
+    return false;
+  }
   for (const auto & write : writes) {
     if (!bus_->write_block(write.address, write.command, write.data)) {
       return false;
@@ -247,6 +266,20 @@ std::vector<I2cBlockWrite> DofbotI2cTransport::encode_command(
   const JointCommand & command,
   std::uint8_t address)
 {
+  const JointLimits limits;
+  if (address < 0x08 || address > 0x77 || command.motion_time.count() <= 0 ||
+    command.motion_time.count() > 65535)
+  {
+    return {};
+  }
+  for (std::size_t index = 0; index < kJointCount; ++index) {
+    const double angle = command.angles_deg[index];
+    if (!std::isfinite(angle) || angle < limits.min_deg[index] ||
+      angle > limits.max_deg[index])
+    {
+      return {};
+    }
+  }
   const std::uint16_t motion_time = clamped_motion_time_ms(command);
   I2cBlockWrite time_write;
   time_write.address = address;

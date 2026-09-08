@@ -19,37 +19,11 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from moveit_configs_utils import MoveItConfigsBuilder
-
-
-def _edgepick_moveit_config():
-    """Reuse vendor MoveIt config while matching the real hardware launch inputs."""
-    edgepick_share = Path(get_package_share_directory("edgepick_bringup"))
-    robot_xacro = edgepick_share / "urdf" / "edgepick_dofbot.urdf.xacro"
-    initial_positions = edgepick_share / "config" / "initial_positions.yaml"
-
-    return (
-        MoveItConfigsBuilder("DOFBOT_Pro-V24", package_name="dofbot_pro_moveit")
-        .robot_description(
-            file_path=str(robot_xacro),
-            mappings={
-                "initial_positions_file": str(initial_positions),
-                "use_real_i2c": "true",
-                "i2c_device": "/dev/i2c-7",
-                "i2c_address": "0x15",
-            },
-        )
-        .trajectory_execution(file_path="config/moveit_controllers.yaml")
-        .to_moveit_configs()
-    )
 
 
 def generate_launch_description():
     edgepick_share = Path(get_package_share_directory("edgepick_bringup"))
     orange_detection_launch = edgepick_share / "launch" / "edgepick_orange_detection.launch.py"
-    real_moveit_launch = edgepick_share / "launch" / "edgepick_moveit_real.launch.py"
-    moveit_config = _edgepick_moveit_config()
-
     orange_detection = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(str(orange_detection_launch)),
         launch_arguments={
@@ -77,20 +51,8 @@ def generate_launch_description():
             "publish_target_lost": LaunchConfiguration("publish_target_lost"),
             "publish_event_once": LaunchConfiguration("publish_event_once"),
             "state_topic": LaunchConfiguration("state_topic"),
-            "gate_events_by_task_state": "true",
+            "gate_events_by_task_state": LaunchConfiguration("gate_events_by_task_state"),
             "target_event_state": "perceiving",
-        }.items(),
-    )
-
-    real_moveit = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(str(real_moveit_launch)),
-        launch_arguments={
-            "publish_frequency": LaunchConfiguration("publish_frequency"),
-            "use_real_i2c": LaunchConfiguration("use_real_i2c"),
-            "i2c_device": LaunchConfiguration("i2c_device"),
-            "i2c_address": LaunchConfiguration("i2c_address"),
-            "motion_time_ms": LaunchConfiguration("motion_time_ms"),
-            "use_rviz": LaunchConfiguration("use_rviz"),
         }.items(),
     )
 
@@ -120,37 +82,12 @@ def generate_launch_description():
         ],
     )
 
-    target_frame_transform = Node(
-        package="edgepick_perception",
-        executable="target_frame_transform_node",
-        name="edgepick_target_frame_transform",
+    kinematics_service = Node(
+        package="dofbot_pro_info",
+        executable="kinemarics_dofbot",
+        name="edgepick_dofbot_kinematics",
         output="screen",
-        parameters=[
-            {
-                "input_topic": "/edgepick/perception/target_point",
-                "output_topic": "/edgepick/perception/target_point_base",
-                "target_frame": LaunchConfiguration("target_frame"),
-                "transform_timeout_ms": LaunchConfiguration("transform_timeout_ms"),
-            }
-        ],
-    )
-
-    grasp_target_builder = Node(
-        package="edgepick_task",
-        executable="grasp_target_builder_node",
-        name="edgepick_grasp_target_builder",
-        output="screen",
-        parameters=[
-            {
-                "target_point_topic": "/edgepick/perception/target_point_base",
-                "pregrasp_pose_topic": "/edgepick/task/pregrasp_pose",
-                "grasp_pose_topic": "/edgepick/task/grasp_pose",
-                "expected_frame": LaunchConfiguration("target_frame"),
-                "pregrasp_offset_m": LaunchConfiguration("pregrasp_offset_m"),
-                "grasp_z_offset_m": LaunchConfiguration("grasp_z_offset_m"),
-                "end_effector_orientation_xyzw": [0.0, 1.0, 0.0, 0.0],
-            }
-        ],
+        condition=IfCondition(LaunchConfiguration("start_kinematics_service")),
     )
 
     perception_metrics = Node(
@@ -207,34 +144,95 @@ def generate_launch_description():
         name="edgepick_orange_grasp_executor",
         output="screen",
         parameters=[
-            moveit_config.to_dict(),
             {
-                "move_group_name": LaunchConfiguration("move_group_name"),
                 "event_topic": "/edgepick/task/event",
                 "state_topic": "/edgepick/task/state",
-                "pregrasp_pose_topic": "/edgepick/task/pregrasp_pose",
-                "grasp_pose_topic": "/edgepick/task/grasp_pose",
-                "gripper_action_name": "/grip_group_controller/gripper_cmd",
+                "target_point_topic": LaunchConfiguration("target_point_topic"),
                 "startup_ready_topic": LaunchConfiguration("startup_ready_topic"),
                 "require_startup_pose_ready": LaunchConfiguration("require_startup_pose_ready"),
-                "planning_time_sec": LaunchConfiguration("planning_time_sec"),
-                "planning_attempts": LaunchConfiguration("planning_attempts"),
-                "state_monitor_wait_sec": LaunchConfiguration("state_monitor_wait_sec"),
+                "use_real_i2c": LaunchConfiguration("use_real_i2c"),
+                "i2c_device": LaunchConfiguration("i2c_device"),
+                "i2c_address": ParameterValue(
+                    LaunchConfiguration("i2c_address"), value_type=str
+                ),
+                "use_kinematics_service": LaunchConfiguration("use_kinematics_service"),
+                "kinematics_service_name": LaunchConfiguration("kinematics_service_name"),
+                "kinematics_wait_sec": LaunchConfiguration("kinematics_wait_sec"),
                 "state_transition_wait_sec": LaunchConfiguration("state_transition_wait_sec"),
                 "startup_wait_sec": LaunchConfiguration("startup_wait_sec"),
+                "target_wait_sec": LaunchConfiguration("target_wait_sec"),
                 "settle_time_ms": LaunchConfiguration("settle_time_ms"),
                 "verification_settle_ms": LaunchConfiguration("verification_settle_ms"),
-                "goal_position_tolerance_m": LaunchConfiguration("goal_position_tolerance_m"),
-                "goal_orientation_tolerance_rad": LaunchConfiguration(
-                    "goal_orientation_tolerance_rad"
+                "pregrasp_motion_time_ms": LaunchConfiguration("pregrasp_motion_time_ms"),
+                "descend_motion_time_ms": LaunchConfiguration("descend_motion_time_ms"),
+                "grip_motion_time_ms": LaunchConfiguration("grip_motion_time_ms"),
+                "lift_motion_time_ms": LaunchConfiguration("lift_motion_time_ms"),
+                "finish_motion_time_ms": LaunchConfiguration("finish_motion_time_ms"),
+                "gripper_open_angle_deg": LaunchConfiguration("gripper_open_angle_deg"),
+                "gripper_close_angle_deg": LaunchConfiguration("gripper_close_angle_deg"),
+                "apply_target_yaw": LaunchConfiguration("apply_target_yaw"),
+                "target_point_mode": LaunchConfiguration("target_point_mode"),
+                "expected_target_frame": LaunchConfiguration("expected_target_frame"),
+                "target_yaw_gain": LaunchConfiguration("target_yaw_gain"),
+                "target_yaw_offset_deg": LaunchConfiguration("target_yaw_offset_deg"),
+                "target_yaw_min_deg": LaunchConfiguration("target_yaw_min_deg"),
+                "target_yaw_max_deg": LaunchConfiguration("target_yaw_max_deg"),
+                "tracking_enabled": LaunchConfiguration("tracking_enabled"),
+                "tracking_max_updates": LaunchConfiguration("tracking_max_updates"),
+                "tracking_centered_updates": LaunchConfiguration("tracking_centered_updates"),
+                "tracking_center_tolerance_deg": LaunchConfiguration(
+                    "tracking_center_tolerance_deg"
                 ),
-                "velocity_scaling_factor": LaunchConfiguration("velocity_scaling_factor"),
-                "acceleration_scaling_factor": LaunchConfiguration(
-                    "acceleration_scaling_factor"
+                "tracking_yaw_gain": LaunchConfiguration("tracking_yaw_gain"),
+                "tracking_motion_time_ms": LaunchConfiguration("tracking_motion_time_ms"),
+                "tracking_target_max_age_ms": LaunchConfiguration("tracking_target_max_age_ms"),
+                "target_world_offset_x_m": LaunchConfiguration("target_world_offset_x_m"),
+                "target_world_offset_y_m": LaunchConfiguration("target_world_offset_y_m"),
+                "target_world_offset_z_m": LaunchConfiguration("target_world_offset_z_m"),
+                "ik_target_z_radius_origin_m": LaunchConfiguration(
+                    "ik_target_z_radius_origin_m"
                 ),
-                "gripper_open_position": LaunchConfiguration("gripper_open_position"),
-                "gripper_close_position": LaunchConfiguration("gripper_close_position"),
-                "gripper_max_effort": LaunchConfiguration("gripper_max_effort"),
+                "ik_target_z_radius_gain": LaunchConfiguration("ik_target_z_radius_gain"),
+                "ik_joint4_max_deg": LaunchConfiguration("ik_joint4_max_deg"),
+                "ik_wrist_angle_deg": LaunchConfiguration("ik_wrist_angle_deg"),
+                "use_ik_joint5": LaunchConfiguration("use_ik_joint5"),
+                "ik_lift_servo2_angle_deg": LaunchConfiguration("ik_lift_servo2_angle_deg"),
+                "min_target_depth_m": LaunchConfiguration("min_target_depth_m"),
+                "max_target_depth_m": LaunchConfiguration("max_target_depth_m"),
+                "max_abs_target_lateral_m": LaunchConfiguration("max_abs_target_lateral_m"),
+                "min_target_vertical_m": LaunchConfiguration("min_target_vertical_m"),
+                "max_target_vertical_m": LaunchConfiguration("max_target_vertical_m"),
+                "return_to_finish_pose": LaunchConfiguration("return_to_finish_pose"),
+                "pregrasp_servo_angle1": LaunchConfiguration("pregrasp_servo_angle1"),
+                "pregrasp_servo_angle2": LaunchConfiguration("pregrasp_servo_angle2"),
+                "pregrasp_servo_angle3": LaunchConfiguration("pregrasp_servo_angle3"),
+                "pregrasp_servo_angle4": LaunchConfiguration("pregrasp_servo_angle4"),
+                "pregrasp_servo_angle5": LaunchConfiguration("pregrasp_servo_angle5"),
+                "pregrasp_servo_angle6": LaunchConfiguration("pregrasp_servo_angle6"),
+                "grasp_servo_angle1": LaunchConfiguration("grasp_servo_angle1"),
+                "grasp_servo_angle2": LaunchConfiguration("grasp_servo_angle2"),
+                "grasp_servo_angle3": LaunchConfiguration("grasp_servo_angle3"),
+                "grasp_servo_angle4": LaunchConfiguration("grasp_servo_angle4"),
+                "grasp_servo_angle5": LaunchConfiguration("grasp_servo_angle5"),
+                "grasp_servo_angle6": LaunchConfiguration("grasp_servo_angle6"),
+                "lift_servo_angle1": LaunchConfiguration("lift_servo_angle1"),
+                "lift_servo_angle2": LaunchConfiguration("lift_servo_angle2"),
+                "lift_servo_angle3": LaunchConfiguration("lift_servo_angle3"),
+                "lift_servo_angle4": LaunchConfiguration("lift_servo_angle4"),
+                "lift_servo_angle5": LaunchConfiguration("lift_servo_angle5"),
+                "lift_servo_angle6": LaunchConfiguration("lift_servo_angle6"),
+                "finish_servo_angle1": LaunchConfiguration("finish_servo_angle1"),
+                "finish_servo_angle2": LaunchConfiguration("finish_servo_angle2"),
+                "finish_servo_angle3": LaunchConfiguration("finish_servo_angle3"),
+                "finish_servo_angle4": LaunchConfiguration("finish_servo_angle4"),
+                "finish_servo_angle5": LaunchConfiguration("finish_servo_angle5"),
+                "finish_servo_angle6": LaunchConfiguration("finish_servo_angle6"),
+                "ik_reference_servo_angle1": LaunchConfiguration("ik_reference_servo_angle1"),
+                "ik_reference_servo_angle2": LaunchConfiguration("ik_reference_servo_angle2"),
+                "ik_reference_servo_angle3": LaunchConfiguration("ik_reference_servo_angle3"),
+                "ik_reference_servo_angle4": LaunchConfiguration("ik_reference_servo_angle4"),
+                "ik_reference_servo_angle5": LaunchConfiguration("ik_reference_servo_angle5"),
+                "ik_reference_servo_angle6": LaunchConfiguration("ik_reference_servo_angle6"),
             }
         ],
     )
@@ -276,13 +274,10 @@ def generate_launch_description():
     def start_workload_after_startup(event, _context):
         if event.returncode == 0:
             return [
-                real_moveit,
                 TimerAction(
-                    period=LaunchConfiguration("post_startup_moveit_wait_sec"),
+                    period=LaunchConfiguration("post_startup_wait_sec"),
                     actions=[
                         orange_detection,
-                        target_frame_transform,
-                        grasp_target_builder,
                         perception_metrics,
                         orange_grasp_executor,
                     ],
@@ -291,10 +286,11 @@ def generate_launch_description():
         return [
             LogInfo(
                 msg=(
-                    "Startup pose failed; MoveIt and orange grasp execution will remain stopped. "
+                    "Startup pose failed; orange grasp execution will remain stopped. "
                     f"returncode={event.returncode}"
                 )
-            )
+            ),
+            EmitEvent(event=Shutdown(reason="startup pose failed")),
         ]
 
     startup_pose_start = TimerAction(
@@ -355,9 +351,6 @@ def generate_launch_description():
             DeclareLaunchArgument("camera_tf_roll", default_value="0.0"),
             DeclareLaunchArgument("camera_tf_pitch", default_value="0.0"),
             DeclareLaunchArgument("camera_tf_yaw", default_value="0.0"),
-            DeclareLaunchArgument("transform_timeout_ms", default_value="100"),
-            DeclareLaunchArgument("pregrasp_offset_m", default_value="0.08"),
-            DeclareLaunchArgument("grasp_z_offset_m", default_value="0.02"),
             DeclareLaunchArgument("min_detection_score", default_value="0.50"),
             DeclareLaunchArgument("max_detection_age_ms", default_value="500"),
             DeclareLaunchArgument("min_depth_m", default_value="0.05"),
@@ -370,35 +363,92 @@ def generate_launch_description():
             DeclareLaunchArgument("publish_task_events", default_value="true"),
             DeclareLaunchArgument("publish_target_lost", default_value="true"),
             DeclareLaunchArgument("publish_event_once", default_value="true"),
+            DeclareLaunchArgument("gate_events_by_task_state", default_value="true"),
             DeclareLaunchArgument("publish_frequency", default_value="15.0"),
             DeclareLaunchArgument("use_real_i2c", default_value="true"),
             DeclareLaunchArgument("i2c_device", default_value="/dev/i2c-7"),
             DeclareLaunchArgument("i2c_address", default_value="0x15"),
-            DeclareLaunchArgument("motion_time_ms", default_value="30"),
-            DeclareLaunchArgument("use_rviz", default_value="false"),
+            DeclareLaunchArgument("start_kinematics_service", default_value="true"),
+            DeclareLaunchArgument("use_kinematics_service", default_value="true"),
+            DeclareLaunchArgument("kinematics_service_name", default_value="dofbot_kinemarics"),
+            DeclareLaunchArgument("kinematics_wait_sec", default_value="5.0"),
             DeclareLaunchArgument("startup_pose_start_delay_sec", default_value="0.5"),
-            DeclareLaunchArgument("post_startup_moveit_wait_sec", default_value="8.0"),
+            DeclareLaunchArgument("post_startup_wait_sec", default_value="1.0"),
             DeclareLaunchArgument("startup_pose_settle_time_ms", default_value="250"),
             DeclareLaunchArgument("zero_motion_time_ms", default_value="3000"),
             DeclareLaunchArgument("restore_motion_time_ms", default_value="2000"),
-            DeclareLaunchArgument(
-                "gripper_action_name", default_value="/grip_group_controller/gripper_cmd"
-            ),
-            DeclareLaunchArgument("move_group_name", default_value="arm_group"),
-            DeclareLaunchArgument("planning_time_sec", default_value="5.0"),
-            DeclareLaunchArgument("planning_attempts", default_value="10"),
-            DeclareLaunchArgument("state_monitor_wait_sec", default_value="2.0"),
             DeclareLaunchArgument("state_transition_wait_sec", default_value="10.0"),
             DeclareLaunchArgument("startup_wait_sec", default_value="30.0"),
-            DeclareLaunchArgument("settle_time_ms", default_value="500"),
+            DeclareLaunchArgument("target_wait_sec", default_value="30.0"),
+            DeclareLaunchArgument("target_point_topic", default_value="/edgepick/perception/target_point"),
+            DeclareLaunchArgument("target_point_mode", default_value="camera_optical"),
+            DeclareLaunchArgument("expected_target_frame", default_value="camera_color_optical_frame"),
+            DeclareLaunchArgument("settle_time_ms", default_value="250"),
             DeclareLaunchArgument("verification_settle_ms", default_value="300"),
-            DeclareLaunchArgument("goal_position_tolerance_m", default_value="0.01"),
-            DeclareLaunchArgument("goal_orientation_tolerance_rad", default_value="0.05"),
-            DeclareLaunchArgument("velocity_scaling_factor", default_value="0.1"),
-            DeclareLaunchArgument("acceleration_scaling_factor", default_value="0.1"),
-            DeclareLaunchArgument("gripper_open_position", default_value="-0.0796"),
-            DeclareLaunchArgument("gripper_close_position", default_value="-1.4939"),
-            DeclareLaunchArgument("gripper_max_effort", default_value="0.0"),
+            DeclareLaunchArgument("pregrasp_motion_time_ms", default_value="1000"),
+            DeclareLaunchArgument("descend_motion_time_ms", default_value="1000"),
+            DeclareLaunchArgument("grip_motion_time_ms", default_value="600"),
+            DeclareLaunchArgument("lift_motion_time_ms", default_value="1000"),
+            DeclareLaunchArgument("finish_motion_time_ms", default_value="1000"),
+            DeclareLaunchArgument("gripper_open_angle_deg", default_value="30.0"),
+            DeclareLaunchArgument("gripper_close_angle_deg", default_value="142.0"),
+            DeclareLaunchArgument("apply_target_yaw", default_value="true"),
+            DeclareLaunchArgument("target_yaw_gain", default_value="1.0"),
+            DeclareLaunchArgument("target_yaw_offset_deg", default_value="0.0"),
+            DeclareLaunchArgument("target_yaw_min_deg", default_value="20.0"),
+            DeclareLaunchArgument("target_yaw_max_deg", default_value="160.0"),
+            DeclareLaunchArgument("tracking_enabled", default_value="true"),
+            DeclareLaunchArgument("tracking_max_updates", default_value="6"),
+            DeclareLaunchArgument("tracking_centered_updates", default_value="2"),
+            DeclareLaunchArgument("tracking_center_tolerance_deg", default_value="4.0"),
+            DeclareLaunchArgument("tracking_yaw_gain", default_value="0.65"),
+            DeclareLaunchArgument("tracking_motion_time_ms", default_value="250"),
+            DeclareLaunchArgument("tracking_target_max_age_ms", default_value="500"),
+            DeclareLaunchArgument("target_world_offset_x_m", default_value="0.0"),
+            DeclareLaunchArgument("target_world_offset_y_m", default_value="0.0"),
+            DeclareLaunchArgument("target_world_offset_z_m", default_value="0.0"),
+            DeclareLaunchArgument("ik_target_z_radius_origin_m", default_value="0.181"),
+            DeclareLaunchArgument("ik_target_z_radius_gain", default_value="0.15"),
+            DeclareLaunchArgument("ik_joint4_max_deg", default_value="90.0"),
+            DeclareLaunchArgument("ik_wrist_angle_deg", default_value="90.0"),
+            DeclareLaunchArgument("use_ik_joint5", default_value="false"),
+            DeclareLaunchArgument("ik_lift_servo2_angle_deg", default_value="120.0"),
+            DeclareLaunchArgument("min_target_depth_m", default_value="0.05"),
+            DeclareLaunchArgument("max_target_depth_m", default_value="1.20"),
+            DeclareLaunchArgument("max_abs_target_lateral_m", default_value="0.35"),
+            DeclareLaunchArgument("min_target_vertical_m", default_value="-0.35"),
+            DeclareLaunchArgument("max_target_vertical_m", default_value="0.35"),
+            DeclareLaunchArgument("return_to_finish_pose", default_value="false"),
+            DeclareLaunchArgument("pregrasp_servo_angle1", default_value="90.0"),
+            DeclareLaunchArgument("pregrasp_servo_angle2", default_value="80.0"),
+            DeclareLaunchArgument("pregrasp_servo_angle3", default_value="50.0"),
+            DeclareLaunchArgument("pregrasp_servo_angle4", default_value="50.0"),
+            DeclareLaunchArgument("pregrasp_servo_angle5", default_value="90.0"),
+            DeclareLaunchArgument("pregrasp_servo_angle6", default_value="30.0"),
+            DeclareLaunchArgument("grasp_servo_angle1", default_value="90.0"),
+            DeclareLaunchArgument("grasp_servo_angle2", default_value="35.0"),
+            DeclareLaunchArgument("grasp_servo_angle3", default_value="65.0"),
+            DeclareLaunchArgument("grasp_servo_angle4", default_value="0.0"),
+            DeclareLaunchArgument("grasp_servo_angle5", default_value="90.0"),
+            DeclareLaunchArgument("grasp_servo_angle6", default_value="30.0"),
+            DeclareLaunchArgument("lift_servo_angle1", default_value="90.0"),
+            DeclareLaunchArgument("lift_servo_angle2", default_value="80.0"),
+            DeclareLaunchArgument("lift_servo_angle3", default_value="50.0"),
+            DeclareLaunchArgument("lift_servo_angle4", default_value="50.0"),
+            DeclareLaunchArgument("lift_servo_angle5", default_value="90.0"),
+            DeclareLaunchArgument("lift_servo_angle6", default_value="135.0"),
+            DeclareLaunchArgument("finish_servo_angle1", default_value="90.0"),
+            DeclareLaunchArgument("finish_servo_angle2", default_value="80.0"),
+            DeclareLaunchArgument("finish_servo_angle3", default_value="50.0"),
+            DeclareLaunchArgument("finish_servo_angle4", default_value="50.0"),
+            DeclareLaunchArgument("finish_servo_angle5", default_value="90.0"),
+            DeclareLaunchArgument("finish_servo_angle6", default_value="135.0"),
+            DeclareLaunchArgument("ik_reference_servo_angle1", default_value="90.0"),
+            DeclareLaunchArgument("ik_reference_servo_angle2", default_value="120.0"),
+            DeclareLaunchArgument("ik_reference_servo_angle3", default_value="0.0"),
+            DeclareLaunchArgument("ik_reference_servo_angle4", default_value="0.0"),
+            DeclareLaunchArgument("ik_reference_servo_angle5", default_value="90.0"),
+            DeclareLaunchArgument("ik_reference_servo_angle6", default_value="20.0"),
             # Yahboom Arm_Lib startup home pose, in servo degrees.
             DeclareLaunchArgument("zero_servo_angle1", default_value="90.0"),
             DeclareLaunchArgument("zero_servo_angle2", default_value="90.0"),
@@ -414,6 +464,7 @@ def generate_launch_description():
             DeclareLaunchArgument("restore_servo_angle5", default_value="90.0"),
             DeclareLaunchArgument("restore_servo_angle6", default_value="30.0"),
             static_camera_tf,
+            kinematics_service,
             task_node,
             mock_task_driver,
             startup_pose_start,

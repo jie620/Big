@@ -33,6 +33,12 @@ struct Point3D
   double z{0.0};
 };
 
+struct DepthSample
+{
+  Pixel pixel{};
+  double depth_m{0.0};
+};
+
 struct DepthRange
 {
   double min_m{0.05};
@@ -44,6 +50,8 @@ struct DepthRange
 // These functions are intentionally free of OpenCV/cv_bridge so they can be
 // unit tested quickly and run in a lean ROS 2 node. Object detection can later
 // choose the pixel; this layer only validates depth and projects it to 3D.
+bool depth_matches_intrinsics(
+  const sensor_msgs::msg::Image & image, const PinholeIntrinsics & intrinsics);
 bool valid_intrinsics(const PinholeIntrinsics & intrinsics);
 PinholeIntrinsics intrinsics_from_camera_info(const sensor_msgs::msg::CameraInfo & message);
 Pixel default_center_pixel(int width, int height);
@@ -51,6 +59,11 @@ std::optional<double> depth_meters_at(
   const sensor_msgs::msg::Image & image,
   Pixel pixel,
   DepthRange range);
+std::optional<DepthSample> depth_meters_near(
+  const sensor_msgs::msg::Image & image,
+  Pixel pixel,
+  DepthRange range,
+  int search_radius = 4);
 std::optional<Point3D> project_pixel_to_3d(
   const PinholeIntrinsics & intrinsics,
   Pixel pixel,

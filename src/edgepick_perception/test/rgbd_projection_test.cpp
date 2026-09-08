@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 #include "edgepick_perception/rgbd_projection.hpp"
 #include "sensor_msgs/image_encodings.hpp"
@@ -47,6 +48,21 @@ sensor_msgs::msg::Image make_float_depth_image(float depth_m)
   const std::size_t offset = sizeof(float);
   std::memcpy(image.data.data() + offset, &depth_m, sizeof(float));
   return image;
+}
+
+TEST(RgbdProjectionTest, RequiresMatchingDepthCalibration)
+{
+  const auto intrinsics = intrinsics_from_camera_info(make_camera_info());
+  sensor_msgs::msg::Image image;
+  image.width = 640;
+  image.height = 480;
+  image.header.frame_id = "depth_camera";
+  EXPECT_TRUE(depth_matches_intrinsics(image, intrinsics));
+  image.width = 320;
+  EXPECT_FALSE(depth_matches_intrinsics(image, intrinsics));
+  image.width = 640;
+  image.header.frame_id = "color_camera";
+  EXPECT_FALSE(depth_matches_intrinsics(image, intrinsics));
 }
 
 TEST(RgbdProjectionTest, ExtractsIntrinsicsFromCameraInfo)
@@ -112,6 +128,28 @@ TEST(RgbdProjectionTest, RejectsInvalidDepthAndPixel)
   EXPECT_FALSE(depth_meters_at(image, Pixel{2, 1}, DepthRange{0.05, 1.20}).has_value());
 }
 
+TEST(RgbdProjectionTest, FindsNearbyValidDepthSample)
+{
+  sensor_msgs::msg::Image image;
+  image.width = 5;
+  image.height = 5;
+  image.encoding = sensor_msgs::image_encodings::TYPE_16UC1;
+  image.step = image.width * sizeof(std::uint16_t);
+  image.data.resize(image.step * image.height, 0U);
+
+  const std::size_t offset = static_cast<std::size_t>(2) * image.step +
+                             static_cast<std::size_t>(3) * sizeof(std::uint16_t);
+  image.data.at(offset) = static_cast<std::uint8_t>(600U & 0xFFU);
+  image.data.at(offset + 1) = static_cast<std::uint8_t>((600U >> 8U) & 0xFFU);
+
+  const auto sample = depth_meters_near(image, Pixel{2, 2}, DepthRange{0.05, 1.20}, 2);
+
+  ASSERT_TRUE(sample.has_value());
+  EXPECT_EQ(sample->pixel.u, 3);
+  EXPECT_EQ(sample->pixel.v, 2);
+  EXPECT_NEAR(sample->depth_m, 0.60, 1e-9);
+}
+
 TEST(RgbdProjectionTest, RejectsInvalidIntrinsics)
 {
   PinholeIntrinsics intrinsics = intrinsics_from_camera_info(make_camera_info());
@@ -119,6 +157,35 @@ TEST(RgbdProjectionTest, RejectsInvalidIntrinsics)
 
   EXPECT_FALSE(valid_intrinsics(intrinsics));
   EXPECT_FALSE(project_pixel_to_3d(intrinsics, Pixel{320, 240}, 0.50).has_value());
+}
+
+TEST(RgbdProjectionTest, RejectsMalformedDepthAndCalibration)
+{
+  auto image = make_uint16_depth_image(650U);
+  image.step = 1;
+  EXPECT_FALSE(depth_meters_at(image, Pixel{2, 1}, DepthRange{0.05, 1.20}));
+  image = make_uint16_depth_image(650U);
+  image.data.pop_back();
+  EXPECT_FALSE(depth_meters_at(image, Pixel{2, 1}, DepthRange{0.05, 1.20}));
+  image = make_uint16_depth_image(650U);
+  EXPECT_FALSE(depth_meters_at(image, Pixel{2, 1},
+    DepthRange{std::numeric_limits<double>::quiet_NaN(), 1.20}));
+  auto intrinsics = intrinsics_from_camera_info(make_camera_info());
+  intrinsics.cx = std::numeric_limits<double>::infinity();
+  EXPECT_FALSE(project_pixel_to_3d(intrinsics, Pixel{320, 240}, 0.5));
+}
+
+TEST(RgbdProjectionTest, ReadsBigEndianFloatDepth)
+{
+  auto image = make_float_depth_image(0.0F);
+  image.is_bigendian = true;
+  image.data[4] = 0x3f;
+  image.data[5] = 0x00;
+  image.data[6] = 0x00;
+  image.data[7] = 0x00;
+  const auto depth = depth_meters_at(image, Pixel{1, 0}, DepthRange{0.05, 1.20});
+  ASSERT_TRUE(depth);
+  EXPECT_DOUBLE_EQ(*depth, 0.5);
 }
 
 }  // namespace

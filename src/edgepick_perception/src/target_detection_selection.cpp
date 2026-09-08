@@ -1,6 +1,7 @@
 #include "edgepick_perception/target_detection_selection.hpp"
 
 #include <cmath>
+#include <limits>
 
 namespace edgepick_perception
 {
@@ -78,8 +79,12 @@ std::optional<TargetDetectionCandidate> select_target_detection(
 Pixel detection_center_pixel(const TargetDetectionCandidate & candidate)
 {
   return Pixel{
-    static_cast<int>(std::lround(candidate.center_u)),
-    static_cast<int>(std::lround(candidate.center_v))};
+    finite_non_negative(candidate.center_u) &&
+    candidate.center_u <= std::numeric_limits<int>::max() - 1.0 ?
+    static_cast<int>(std::lround(candidate.center_u)) : -1,
+    finite_non_negative(candidate.center_v) &&
+    candidate.center_v <= std::numeric_limits<int>::max() - 1.0 ?
+    static_cast<int>(std::lround(candidate.center_v)) : -1};
 }
 
 }  // namespace edgepick_perception

@@ -1,0 +1,14 @@
+# Project Study Log
+
+## 2026-09-06 - Study log workflow initialized
+- Purpose: Establish a durable record for meaningful investigations and optimizations.
+- Investigation/optimization: Chose one root-level log per project with short entries covering purpose, evidence/reasoning, result, and next step.
+- Result: Logging skill created; existing project changes were left untouched.
+- Next: Append only when a diagnosis, optimization, or verified result materially advances the project.
+
+## 2026-09-07 - 按严重性修复执行与感知风险
+- Purpose: 收敛硬件误动作、旧目标、反馈错误与伪成功风险，完成软件回归后统一补 README。
+- Evidence: 直接 I2C 绕过网关校验；取消未触发停止；FK 使用预设姿态；重复/旧帧参与跟踪；MoveIt 适配器无 goal 仍返回成功；NaN 反馈误差被忽略。
+- Result: 增加传输输入校验与设备锁、严格地址及关节顺序检查、反馈失败写入闸门、取消/中断检查、实际姿态和新帧门控、RGB-D 坐标/时间/内参检查、外部真实抓取验证。83 C++、23 配置、8 无硬件 ROS 场景通过。
+- Validation limits: 后期 colcon 在 100% 后挂起，终止后以 CMake/CTest、pytest 完成最新源码验证；DDS 运行测试经授权在沙箱外执行，全部强制 mock I2C。未进行真实舵机动作。
+- Next: 验证 RGB-D 注册与手眼标定后做实机验收；不将软件测试等同于抓取成功或整项目全部功能完成。

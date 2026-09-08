@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "edgepick_task/joint_feedback.hpp"
 
 #include "edgepick_task/task_event_io.hpp"
 
@@ -6,6 +7,16 @@ namespace edgepick_task
 {
 namespace
 {
+
+TEST(JointFeedbackTest, InvalidFeedbackCannotVerifyMotion)
+{
+  const auto nan = std::numeric_limits<double>::quiet_NaN();
+  EXPECT_DOUBLE_EQ(max_abs_error({0.0, 1.0}, {0.1, 0.8}), 0.2);
+  EXPECT_TRUE(std::isinf(max_abs_error({}, {})));
+  EXPECT_TRUE(std::isinf(max_abs_error({0.0}, {})));
+  EXPECT_TRUE(std::isinf(max_abs_error({0.0}, {nan})));
+  EXPECT_TRUE(std::isinf(max_abs_error({nan}, {0.0})));
+}
 
 TEST(TaskEventIoTest, ParsesKnownEventNames)
 {

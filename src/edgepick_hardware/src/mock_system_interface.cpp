@@ -90,7 +90,7 @@ hardware_interface::CallbackReturn MockSystemInterface::on_init(
       i2c_config.enabled = true;
       i2c_config.device = parameter_or(hardware_info, "i2c_device", i2c_config.device);
       const auto address_text = parameter_or(hardware_info, "i2c_address", "0x15");
-      i2c_config.address = static_cast<std::uint8_t>(std::stoul(address_text, nullptr, 0));
+      i2c_config.address = parse_i2c_address(address_text);
       transport_ = std::make_unique<DofbotI2cTransport>(i2c_config);
       i2c_transport_ = static_cast<DofbotI2cTransport *>(transport_.get());
       mock_transport_ = nullptr;
@@ -176,10 +176,11 @@ hardware_interface::return_type MockSystemInterface::read(
   if (use_real_i2c_) {
     const auto now = std::chrono::steady_clock::now();
     if (now - last_real_read_at_ >= std::chrono::milliseconds{50}) {
-      // Keep the last valid feedback during a transient I2C miss. Do not write
-      // feedback into command_positions_rad_; those handles belong to the
-      // controller and must remain the desired command, not the measured state.
-      (void)read_real_servo_state(false);
+      // A feedback failure latches the write gate; never keep moving blindly.
+      if (!read_real_servo_state(false)) {
+        feedback_failed_ = true;
+        return hardware_interface::return_type::ERROR;
+      }
       last_real_read_at_ = now;
     }
   }
@@ -190,7 +191,7 @@ hardware_interface::return_type MockSystemInterface::write(
   const rclcpp::Time & time,
   const rclcpp::Duration & period)
 {
-  if (!gateway_.has_value()) {
+  if (!gateway_.has_value() || feedback_failed_) {
     return hardware_interface::return_type::ERROR;
   }
 
@@ -264,7 +265,12 @@ bool MockSystemInterface::initialize_joint_storage(
   state_velocities_rad_s_.assign(kJointCount, 0.0);
   command_positions_rad_.assign(kJointCount, 0.0);
 
+  const std::array<std::string, kJointCount> expected{
+    "Arm1_Joint", "Arm2_Joint", "Arm3_Joint", "Arm4_Joint", "Arm5_Joint", "grip_joint"};
   for (std::size_t index = 0; index < hardware_info.joints.size(); ++index) {
+    if (hardware_info.joints[index].name != expected[index]) {
+      return false;
+    }
     const auto & joint = hardware_info.joints[index];
     if (!component_has_position_command(joint) || !component_has_supported_state_interfaces(joint)) {
       return false;

@@ -32,8 +32,12 @@ class CocoDetectorNode(Node):
         self.label_path = self.declare_parameter("label_path", DEFAULT_LABEL_PATH).value
         self.target_label = self.declare_parameter("target_label", "orange").value
         self.frame_id_override = self.declare_parameter("frame_id", "").value
-        self.conf_threshold = float(self.declare_parameter("conf_threshold", 0.4).value)
-        self.max_detections = int(self.declare_parameter("max_detections", 20).value)
+        self.conf_threshold = min(
+            1.0, max(0.0, float(self.declare_parameter("conf_threshold", 0.4).value))
+        )
+        self.max_detections = min(
+            1000, max(1, int(self.declare_parameter("max_detections", 20).value))
+        )
         self.publish_empty_frames = bool(
             self.declare_parameter("publish_empty_frames", True).value
         )

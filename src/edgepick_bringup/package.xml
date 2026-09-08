@@ -11,6 +11,8 @@
 
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>dofbot_pro_description</exec_depend>
+  <exec_depend>dofbot_pro_info</exec_depend>
+  <exec_depend>dofbot_pro_interface</exec_depend>
   <exec_depend>dofbot_pro_moveit</exec_depend>
   <exec_depend>edgepick_hardware</exec_depend>
   <exec_depend>edgepick_interfaces</exec_depend>

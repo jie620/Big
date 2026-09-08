@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <stdexcept>
@@ -23,8 +24,8 @@ public:
   {
     use_real_i2c_ = declare_parameter<bool>("use_real_i2c", true);
     i2c_device_ = declare_parameter<std::string>("i2c_device", "/dev/i2c-7");
-    i2c_address_ = static_cast<std::uint8_t>(std::clamp<int64_t>(
-      declare_parameter<int64_t>("i2c_address", 0x15), 0, 255));
+    i2c_address_ = edgepick_hardware::parse_i2c_address(
+      std::to_string(declare_parameter<int64_t>("i2c_address", 0x15)));
     motion_time_ms_ = std::clamp(
       static_cast<int>(declare_parameter<int>("motion_time_ms", 2000)), 20, 30000);
 
@@ -36,7 +37,7 @@ public:
     for (std::size_t index = 0; index < edgepick_hardware::kJointCount; ++index) {
       servo_angles_deg_[index] = pose[index];
       const double max_deg = index == 4U ? 270.0 : 180.0;
-      if (servo_angles_deg_[index] < 0.0 || servo_angles_deg_[index] > max_deg) {
+      if (!std::isfinite(servo_angles_deg_[index]) || servo_angles_deg_[index] < 0.0 || servo_angles_deg_[index] > max_deg) {
         throw std::runtime_error("servo_angles contains a value outside the DOFBOT range");
       }
     }

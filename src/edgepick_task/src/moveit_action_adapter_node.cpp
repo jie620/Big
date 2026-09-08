@@ -43,7 +43,7 @@ public:
 
     event_publisher_ = create_publisher<std_msgs::msg::String>(event_topic, 10);
     state_subscription_ = create_subscription<std_msgs::msg::String>(
-      state_topic, 10,
+      state_topic, rclcpp::QoS(1).reliable().transient_local(),
       [this](const std_msgs::msg::String::SharedPtr message) { handle_state_message(*message); });
 
     // Stage 7 creates typed MoveIt action clients and checks action-server
@@ -157,9 +157,9 @@ private:
 
     RCLCPP_WARN(
       get_logger(),
-      "MoveIt action server is available, but Stage 7 still uses configured dry-run outcomes; "
-      "real goal construction is a later step.");
-    return configured_outcome_for_phase(phase);
+      "MoveIt action server is available, but this adapter has no goal construction yet; "
+      "refusing to report a fake success.");
+    return MoveItActionOutcome::kUnavailable;
   }
 
   MoveItActionOutcome configured_outcome_for_phase(MoveItTaskPhase phase) const

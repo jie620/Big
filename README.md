@@ -2,6 +2,68 @@
 
 面向 Jetson Orin NX 与 Yahboom DOFBOT Pro 的资源自适应、可恢复 RGB-D 机器人抓取系统。
 
+## 当前实现与验收（2026-09-07）
+
+当前橘子抓取链路是 **COCO SSD 检测 → RGB-D 目标点 → 任务状态机 → 厂商 IK / 直接 I2C**。
+YOLO 检测桥和 MoveIt 验证入口独立保留；下方“目标架构”和历史阶段记录不代表所有规划功能已经落地。
+直接 I2C 抓取没有 MoveIt 碰撞规划，也没有自动对象级抓取验证、自动恢复重试或资源自适应推理。
+
+| 入口 | 行为 |
+| --- | --- |
+| `edgepick_prehardware_mock_rehearsal.launch.py` | 不需要相机或机械臂的模拟任务演练 |
+| `scripts/run_orange_grasp_validation.sh` | 启动真实相机，默认 `USE_REAL_I2C=false`，只模拟机械臂命令 |
+| `edgepick_orange_grasp_execution.launch.py` | **默认 `use_real_i2c=true`，会执行启动姿态**；软件验证必须显式传 `false` |
+| `edgepick_moveit_real_validation.launch.py` | 独立 MoveIt 单关节增量/返回验证；真实执行入口 |
+| `edgepick_moveit_zero_restore_validation.launch.py` | 独立 MoveIt 零位/恢复姿态验证；真实执行入口 |
+
+### 本轮按严重性修复
+
+- **P0 动作与硬件边界**：任务取消/失败/恢复会停止执行器后续命令；启动中断不再继续恢复姿态；真机启动及 FK 前要求舵机反馈；反馈读失败锁住 ros2_control 写入；拒绝关节顺序错配、越界/非有限角度及非法时长。I2C 地址严格解析，EdgePick 进程通过设备文件锁互斥。
+- **P1 错误目标与错误成功结果**：拒绝旧时间戳、重复帧、错误坐标系、深度/内参分辨率错配；处理大端浮点深度、损坏图像及异常内参；跟踪动作后等待新采样并更新实际姿态；IK 输入/输出检查非有限值；MoveIt 未发送 goal 时不再伪报成功，NaN 反馈不再通过到位验证。
+- **P2 配置与退出**：负数恢复预算不再转换成巨大无符号数；启动失败结束整个 launch；快捷脚本移除失效的弧度夹爪参数、透传现有参数并正确处理退出信号。
+
+设备文件锁只约束采用相同锁协议的进程，厂商 Arm_Lib 等外部程序仍需停止。取消只阻止后续命令，**不能撤回控制板已收到的动作，也不是物理急停**。
+
+### 构建与无硬件回归
+
+```bash
+cd /home/jetson/Codex_Projects/Big
+source /opt/ros/humble/setup.bash
+source /home/jetson/dofbot_pro_ws/install/setup.bash
+colcon build --base-paths src --symlink-install
+source install/setup.bash
+colcon test --base-paths src
+colcon test-result --test-result-base build --verbose
+ROS_LOG_DIR=/tmp/edgepick_safety_ros_logs ROS_DOMAIN_ID=187 ROS_LOCALHOST_ONLY=1 \
+  python3 src/edgepick_task/test/runtime_safety_check.py
+```
+
+实际验证：83 项 C++ 测试、23 项启动配置测试、8 个无硬件 ROS 运行场景通过；两个主 launch 的 `--show-args`、Python 语法、shell 语法和源码 diff 检查通过。
+八个场景包括取消、过期目标、错误 frame、单帧不能冒充连续居中、dry-run 成功、真实适配器拒绝伪成功、负恢复预算和启动中断。
+本轮后期 colcon 在构建到 100% 后未退出，已终止并使用各包 `cmake --build` / CTest 和 pytest 完成最新源码验证；这不是一次全新环境的完整部署验收。
+
+### 真机输入与验证要求
+
+必须提供**已注册到检测图像像素坐标系的深度及配套内参**，三者 frame 一致、时间接近。
+不能仅因 color/depth 都是 640×480 就认为已经对齐。现有默认 raw depth topic 不保证已注册；出现 frame/resolution mismatch 时应修正相机配置或输入 topic，不能简单改 frame 名绕过检查。
+`expected_target_frame` 默认 `camera_color_optical_frame`；基座输入必须同时配置 `target_point_mode:=base`、`expected_target_frame:=base_link`、对应目标 topic 及 `tracking_enabled:=false`。
+
+先完成注册、标定和独占检查，再使用 `USE_REAL_I2C=true bash scripts/run_orange_grasp_validation.sh` 启动真实动作。
+夹爪参数现在是 `gripper_open_angle_deg` / `gripper_close_angle_deg`（度），可作为脚本附加参数传入。
+启动的固定姿态保持 `[90,90,90,90,90,30] → [90,165,18,0,90,30]`。
+
+真实动作完成后，任务进入 `verifying`，等待外部观察或验证器发送结果，默认等待 `state_transition_wait_sec=10.0` 秒，可按需调大。
+只有实际确认抓住后才发送：
+
+```bash
+ros2 topic pub --once /edgepick/task/event std_msgs/msg/String '{data: verification_succeeded}'
+# 观察到抓取失败时发送 verification_failed；取消使用 cancel_requested。
+```
+
+当前直接执行器是单次任务，进入 recovering 会停止，并未实现自动再定位/重抓。
+完整视觉闭环、手眼标定、碰撞安全和抓取成功率仍需真机验收；本轮未驱动真实舵机。
+外部资源及路径见 [vendor/EXTERNAL_DEPENDENCIES.md](vendor/EXTERNAL_DEPENDENCIES.md)。
+
 本仓库是 EdgePick 的唯一开发位置。厂商工程仅以只读参考快照保留在 `vendor/yahboom/`；所有新增或改造代码必须放在本仓库的 `src/`、`docs/`、`scripts/` 或 `test/` 中。
 
 ## 目标架构
@@ -263,4 +325,4 @@ colcon test-result --test-result-base build --all --verbose
 
 ## 下一步目标
 
-阶段 22：补真实抓取后的对象级验证、恢复策略和重复抓取收敛。
+完成 RGB-D 注册与手眼标定后的实机验收；记录任务事件、实际抓取结果和失败原因。自动对象验证、恢复重抓与资源自适应仍属后续功能。

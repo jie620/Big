@@ -34,7 +34,7 @@ public:
 
     event_publisher_ = create_publisher<std_msgs::msg::String>(event_topic, 10);
     state_subscription_ = create_subscription<std_msgs::msg::String>(
-      state_topic, 10,
+      state_topic, rclcpp::QoS(1).reliable().transient_local(),
       [this](const std_msgs::msg::String::SharedPtr message) { handle_state_message(*message); });
     timer_ = create_wall_timer(
       std::chrono::milliseconds(event_period_ms), [this]() { publish_next_when_ready(); });

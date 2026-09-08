@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <limits>
 
 #include <vector>
 
@@ -8,6 +9,16 @@ namespace edgepick_perception
 {
 namespace
 {
+
+TEST(TargetDetectionSelectionTest, RejectsUnrepresentablePixelCenters)
+{
+  TargetDetectionCandidate candidate;
+  candidate.center_u = std::numeric_limits<double>::infinity();
+  candidate.center_v = 1e100;
+  const auto pixel = detection_center_pixel(candidate);
+  EXPECT_EQ(pixel.u, -1);
+  EXPECT_EQ(pixel.v, -1);
+}
 
 TEST(TargetDetectionSelectionTest, SelectsHighestScoringCandidate)
 {

@@ -58,10 +58,17 @@ public:
       config.device = i2c_device_;
       config.address = i2c_address_;
       edgepick_hardware::DofbotI2cTransport transport(config);
+      if (use_real_i2c_ && !transport.read_servo_angles()) {
+        RCLCPP_ERROR(get_logger(), "Startup refused: current servo feedback unavailable.");
+        return 1;
+      }
 
       if (!send_pose(
           transport, "zero/home", zero_servo_angles_deg_, zero_motion_time_ms_))
       {
+        return 1;
+      }
+      if (!rclcpp::ok()) {
         return 1;
       }
       if (!send_pose(
@@ -118,15 +125,7 @@ private:
 
   std::uint8_t parse_i2c_address(const std::string & text) const
   {
-    try {
-      const auto parsed = std::stoul(text, nullptr, 0);
-      if (parsed > std::numeric_limits<std::uint8_t>::max()) {
-        throw std::out_of_range("I2C address out of uint8 range");
-      }
-      return static_cast<std::uint8_t>(parsed);
-    } catch (const std::exception & error) {
-      throw std::runtime_error("invalid i2c_address '" + text + "': " + error.what());
-    }
+    return edgepick_hardware::parse_i2c_address(text);
   }
 
   bool send_pose(
@@ -135,6 +134,9 @@ private:
     const std::array<double, edgepick_hardware::kJointCount> & angles_deg,
     int motion_time_ms) const
   {
+    if (!rclcpp::ok()) {
+      return false;
+    }
     edgepick_hardware::JointCommand command;
     command.angles_deg = angles_deg;
     command.motion_time = std::chrono::milliseconds{motion_time_ms};
@@ -158,7 +160,7 @@ private:
     }
 
     rclcpp::sleep_for(std::chrono::milliseconds{motion_time_ms + settle_time_ms_});
-    return true;
+    return rclcpp::ok();
   }
 
   bool use_real_i2c_{true};

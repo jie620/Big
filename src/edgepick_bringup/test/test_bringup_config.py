@@ -99,6 +99,19 @@ def test_moveit_real_validation_launch_includes_minimal_execution_node():
     assert 'Shutdown' in launch_text
 
 
+def test_moveit_zero_restore_validation_launch_includes_execution_node():
+    launch_file = (
+        package_source_dir() / "launch" / "edgepick_moveit_zero_restore_validation.launch.py"
+    )
+    launch_text = launch_file.read_text(encoding="utf-8")
+
+    assert 'edgepick_moveit_real.launch.py' in launch_text
+    assert 'executable="moveit_zero_restore_validation_node"' in launch_text
+    assert 'joint_tolerance_rad' in launch_text
+    assert 'OnProcessExit' in launch_text
+    assert 'Shutdown' in launch_text
+
+
 def test_real_control_launch_enables_explicit_i2c_parameters():
     launch_file = package_source_dir() / "launch" / "edgepick_real_control.launch.py"
     launch_text = launch_file.read_text(encoding="utf-8")
@@ -230,25 +243,54 @@ def test_orange_grasp_execution_launch_wires_real_grasp_chain():
     launch_text = launch_file.read_text(encoding="utf-8")
 
     assert 'IncludeLaunchDescription' in launch_text
-    assert 'edgepick_moveit_real.launch.py' in launch_text
     assert 'edgepick_orange_detection.launch.py' in launch_text
     assert 'executable="orange_grasp_executor_node"' in launch_text
     assert 'executable="startup_pose_sequence_node"' in launch_text
+    assert 'executable="kinemarics_dofbot"' in launch_text
     assert 'executable="mock_task_driver_node"' in launch_text
     assert '"scenario": LaunchConfiguration("task_scenario")' in launch_text
     assert 'DeclareLaunchArgument("task_scenario", default_value="start_only")' in launch_text
-    assert 'gripper_action_name' in launch_text
+    assert 'edgepick_moveit_real.launch.py' not in launch_text
+    assert 'moveit_action_adapter_node' not in launch_text
+    assert 'gripper_action_name' not in launch_text
+    assert '"use_real_i2c": LaunchConfiguration("use_real_i2c")' in launch_text
+    assert '"i2c_device": LaunchConfiguration("i2c_device")' in launch_text
+    assert '"i2c_address": ParameterValue(' in launch_text
+    assert '"use_kinematics_service": LaunchConfiguration("use_kinematics_service")' in launch_text
+    assert '"kinematics_service_name": LaunchConfiguration("kinematics_service_name")' in launch_text
+    assert 'DeclareLaunchArgument("start_kinematics_service", default_value="true")' in launch_text
+    assert 'DeclareLaunchArgument("use_kinematics_service", default_value="true")' in launch_text
+    assert '"target_point_topic": LaunchConfiguration("target_point_topic")' in launch_text
+    assert '"target_point_mode": LaunchConfiguration("target_point_mode")' in launch_text
+    assert '"tracking_enabled": LaunchConfiguration("tracking_enabled")' in launch_text
+    assert 'DeclareLaunchArgument("tracking_enabled", default_value="true")' in launch_text
+    assert 'DeclareLaunchArgument("tracking_max_updates", default_value="6")' in launch_text
+    assert 'DeclareLaunchArgument("tracking_centered_updates", default_value="2")' in launch_text
+    assert 'DeclareLaunchArgument("tracking_center_tolerance_deg", default_value="4.0")' in launch_text
+    assert 'DeclareLaunchArgument("tracking_yaw_gain", default_value="0.65")' in launch_text
+    assert 'target_world_offset_x_m' in launch_text
+    assert 'ik_target_z_radius_origin_m' in launch_text
+    assert 'ik_lift_servo2_angle_deg' in launch_text
+    assert 'ik_reference_servo_angle2' in launch_text
+    assert 'pregrasp_servo_angle1' in launch_text
+    assert 'grasp_servo_angle2' in launch_text
+    assert 'lift_servo_angle6' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle1", default_value="90.0")' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle2", default_value="165.0")' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle3", default_value="18.0")' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle4", default_value="0.0")' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle5", default_value="90.0")' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle6", default_value="30.0")' in launch_text
-    assert 'goal_position_tolerance_m' in launch_text
-    assert 'goal_orientation_tolerance_rad' in launch_text
+    assert 'goal_position_tolerance_m' not in launch_text
+    assert 'goal_orientation_tolerance_rad' not in launch_text
+    assert 'joint_goal_tolerance_rad' not in launch_text
+    assert 'enable_search_motion' not in launch_text
+    assert 'search_cycles' not in launch_text
+    assert 'search_settle_ms' not in launch_text
     assert 'workload_after_startup' in launch_text
     assert 'startup_pose_start_delay_sec' in launch_text
-    assert 'post_startup_moveit_wait_sec' in launch_text
+    assert 'post_startup_wait_sec' in launch_text
+    assert 'post_startup_moveit_wait_sec' not in launch_text
     assert 'DeclareLaunchArgument("zero_servo_angle1", default_value="90.0")' in launch_text
     assert 'DeclareLaunchArgument("zero_servo_angle2", default_value="90.0")' in launch_text
     assert 'DeclareLaunchArgument("zero_servo_angle3", default_value="90.0")' in launch_text
@@ -257,7 +299,7 @@ def test_orange_grasp_execution_launch_wires_real_grasp_chain():
     assert 'DeclareLaunchArgument("zero_servo_angle6", default_value="30.0")' in launch_text
     assert 'restore_servo_angle2' in launch_text
     assert 'startup_ready_topic' in launch_text
-    assert '"gate_events_by_task_state": "true"' in launch_text
+    assert '"gate_events_by_task_state": LaunchConfiguration("gate_events_by_task_state")' in launch_text
     assert '"target_event_state": "perceiving"' in launch_text
 
 
@@ -280,6 +322,8 @@ def test_startup_pose_uses_direct_i2c_home_then_fixed_restore():
     launch_file = package_source_dir() / "launch" / "edgepick_orange_grasp_execution.launch.py"
     launch_text = launch_file.read_text(encoding="utf-8")
     assert 'DeclareLaunchArgument("restore_servo_angle1", default_value="90.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle2", default_value="165.0")' in launch_text
+    assert 'DeclareLaunchArgument("restore_servo_angle3", default_value="18.0")' in launch_text
     assert 'DeclareLaunchArgument("restore_servo_angle6", default_value="30.0")' in launch_text
     assert 'real_moveit,' not in launch_text.split("return LaunchDescription", maxsplit=1)[1]
     assert "workload_after_startup" in launch_text

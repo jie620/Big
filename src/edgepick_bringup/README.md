@@ -1,5 +1,10 @@
 # edgepick_bringup
 
+> 当前行为更新（2026-09-07）：橘子执行采用厂商 IK 与直接 I2C，MoveIt 验证入口独立。
+> 真实动作后等待外部验证；取消/失败阻止后续命令。历史阶段中的 MoveIt 抓取及自动验证描述不代表当前执行器。
+> 启动方式、坐标匹配要求、修复清单及验收证据见 [根 README](../../README.md)。
+
+
 EdgePick 的启动编排包。阶段 3 只启动 mock 控制链，不访问真实 `/dev/i2c-7`，也不会移动机械臂。
 
 ## 结构
@@ -106,7 +111,7 @@ ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_
 ROS_LOG_DIR=/tmp/edgepick_ros_logs ros2 launch edgepick_bringup edgepick_orange_grasp_execution.launch.py
 ```
 
-该入口启动后会先执行原来的全 0 ROS/MoveIt 姿态，再恢复现场默认舵机姿态
+该入口启动后会先通过直连 I2C 执行零位姿态，再恢复现场默认舵机姿态
 `[90, 165, 18, 0, 90, 30]`，完成后才允许橘子抓取执行器继续。
 
 ## 阶段记录
