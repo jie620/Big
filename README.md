@@ -326,3 +326,9 @@ colcon test-result --test-result-base build --all --verbose
 ## 下一步目标
 
 完成 RGB-D 注册与手眼标定后的实机验收；记录任务事件、实际抓取结果和失败原因。自动对象验证、恢复重抓与资源自适应仍属后续功能。
+
+### 阶段 22：SmolVLA 首阶段接入
+
+新增 `edgepick_vla` 包和 `VLAAction` 消息。`smolvla_node` 读取 `/camera/color/image_raw`、`/joint_states` 和 `/camera/depth/points`，调用本地 SmolVLA checkpoint，并发布 `/edgepick/vla/action` 与关节轨迹；`edgepick_vla_real.launch.py` 组合 Orbbec、真实 I2C ros2_control 和 VLA 节点。
+
+当前点云只接入观测链路，不执行动态避障；VLA 真机执行前仍需完成动作限幅、控制源独占、低速无物体验证、相机/关节时间同步和急停验证。构建验证：六个包构建通过，Python 语法检查通过；尚无真机 VLA 运动证据。

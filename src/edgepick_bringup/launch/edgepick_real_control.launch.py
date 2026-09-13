@@ -1,7 +1,7 @@
 """Start the EdgePick ros2_control chain with explicit real I2C enablement."""
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -66,18 +66,28 @@ def generate_launch_description():
         parameters=[robot_description, controllers_file],
     )
 
+    # Start controller spawners serially.  Starting all three in parallel can
+    # make controller_manager race while claiming interfaces; the loser then
+    # reports "Not available" even though the hardware is healthy.
     spawners = [
-        Node(
+        TimerAction(period=0.5, actions=[Node(
             package="controller_manager",
             executable="spawner",
-            arguments=[controller, "--controller-manager", "/controller_manager"],
+            arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
             output="screen",
-        )
-        for controller in [
-            "joint_state_broadcaster",
-            "arm_group_controller",
-            "grip_group_controller",
-        ]
+        )]),
+        TimerAction(period=2.0, actions=[Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=["arm_group_controller", "--controller-manager", "/controller_manager"],
+            output="screen",
+        )]),
+        TimerAction(period=3.5, actions=[Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=["grip_group_controller", "--controller-manager", "/controller_manager"],
+            output="screen",
+        )]),
     ]
 
     return LaunchDescription(
@@ -86,7 +96,7 @@ def generate_launch_description():
             DeclareLaunchArgument("use_real_i2c", default_value="true"),
             DeclareLaunchArgument("i2c_device", default_value="/dev/i2c-7"),
             DeclareLaunchArgument("i2c_address", default_value="0x15"),
-            DeclareLaunchArgument("motion_time_ms", default_value="30"),
+            DeclareLaunchArgument("motion_time_ms", default_value="80"),
             robot_state_publisher,
             ros2_control_node,
             *spawners,

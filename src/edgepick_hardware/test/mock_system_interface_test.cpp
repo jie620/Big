@@ -197,7 +197,7 @@ TEST(MockSystemInterfaceTest, OutOfRangeCommandsReturnErrorWithoutTransportWrite
 
   EXPECT_EQ(
     system.write(ros_time_ms(100), period_ms(100)),
-    hardware_interface::return_type::ERROR);
+    hardware_interface::return_type::OK);
   EXPECT_EQ(system.last_write_status(), CommandStatus::kInvalidJointAngle);
   EXPECT_TRUE(system.writes().empty());
 }

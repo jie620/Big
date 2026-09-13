@@ -12,3 +12,33 @@
 - Result: 增加传输输入校验与设备锁、严格地址及关节顺序检查、反馈失败写入闸门、取消/中断检查、实际姿态和新帧门控、RGB-D 坐标/时间/内参检查、外部真实抓取验证。83 C++、23 配置、8 无硬件 ROS 场景通过。
 - Validation limits: 后期 colcon 在 100% 后挂起，终止后以 CMake/CTest、pytest 完成最新源码验证；DDS 运行测试经授权在沙箱外执行，全部强制 mock I2C。未进行真实舵机动作。
 - Next: 验证 RGB-D 注册与手眼标定后做实机验收；不将软件测试等同于抓取成功或整项目全部功能完成。
+
+## 2026-09-12 - real controller activation failure
+- Purpose: Diagnose controller_manager rejection of arm/gripper/state broadcaster activation.
+- Investigation: Logs show the hardware plugin initializes successfully, then all controllers fail interface claiming; the launch file also attempted parallel spawners, and a later edit exposed an undefined spawner variable.
+- Result: Fixed the launch spawner argument and changed startup to serialized timers; build of edgepick_bringup passed. Runtime activation still needs confirmation on the robot.
+- Next: Relaunch and verify `ros2 control list_controllers`; if interfaces remain unavailable, capture the first hardware/plugin error before controller spawning.
+
+## 2026-09-12 - I2C trajectory frequency limit
+- Purpose: Resolve the real-arm symptom where the first trajectory moved partially and later goals reported success without completing.
+- Investigation: The drive board was known to reject or mishandle high-frequency MoveIt updates. The controller was publishing at 100 Hz while the I2C path applied per-cycle commands; the board could not reliably consume that stream.
+- Result: Set `controller_manager.update_rate` to 20 Hz, increased the gateway minimum command interval to 50 ms, and added trajectory goal/velocity constraints. Real-arm testing succeeded at 20 Hz, including repeated angle changes.
+- Next: Measure the highest stable rate by testing 25, 30, 40, then 50 Hz; stop at the first missed, partial, or delayed move and use the previous rate as the operating limit.
+
+## 2026-09-12 - intermittent I2C faults and hard motion limits
+- Purpose: Prevent intermittent real-arm stalls, false action success, and unsafe direct action goals.
+- Investigation: The 40 Hz test rate exceeded the previously verified stable range. Each feedback sample synchronously polled six servo registers with up to five retries, so NACKs could block the controller-manager loop. The ros2_control command interfaces also lacked explicit min/max values, while transport limits alone did not guarantee early action rejection.
+- Result: Restored the safe 20 Hz default, set a 50 ms command gate, reduced feedback polling to 150 ms with two attempts, kept the component recoverable after transient feedback failures, added ROS-radian limits to each command interface, and reject out-of-range commands in the hardware write path. Added strict trajectory end constraints and disabled partial goals.
+- Next: Validate on hardware with an in-range move, an out-of-range goal, repeated commands after an induced I2C fault, and confirm action results are aborted/ rejected rather than successful.
+
+## 2026-09-12 - VLA pre-integration dry-run gate
+- Purpose: Prepare VLA integration without allowing unverified model outputs to move the real arm.
+- Investigation: `smolvla_node` previously published directly to `/arm_group_controller/joint_trajectory`, bypassing MoveIt and its planning scene; action units/mapping are not yet validated on the real robot.
+- Result: Added `execute_trajectory` parameter, default `false`. VLA inference and `/edgepick/vla/action` publication remain available while trajectory execution is disabled by default. Python syntax and builds of `edgepick_interfaces`, `edgepick_vla`, and `edgepick_bringup` passed.
+- Next: Validate VLA action units, frame/timestamp freshness, output limits, and a single controlled execution path before enabling `execute_trajectory:=true`.
+
+## 2026-09-13 - VLA real execution wiring
+- Purpose: Diagnose why VLA messages changed while the real arm did not move.
+- Investigation: The launch parameter `execute_trajectory` remained false, so the node published only `/edgepick/vla/action`. After enabling execution, the arm controller rejected six-joint trajectories because `arm_group_controller` accepts only Arm1_Joint through Arm5_Joint.
+- Result: Launch now converts `execute_trajectory` explicitly and defaults the real VLA launch to true; trajectory publication sends only the five arm joints while retaining `grip_joint` in `VLAAction`. Rebuilt `edgepick_bringup` and `edgepick_vla`; real VLA execution subsequently succeeded.
+- Next: Keep point-cloud validity as a separate RGB-D issue; it did not block this verified arm execution path.

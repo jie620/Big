@@ -43,7 +43,7 @@ def test_controller_yaml_matches_moveit_controller_names():
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
     manager = config["controller_manager"]["ros__parameters"]
-    assert manager["update_rate"] == 100
+    assert manager["update_rate"] == 20
     assert manager["joint_state_broadcaster"]["type"] == "joint_state_broadcaster/JointStateBroadcaster"
     assert manager["arm_group_controller"]["type"] == "joint_trajectory_controller/JointTrajectoryController"
     assert manager["grip_group_controller"]["type"] == "position_controllers/GripperActionController"

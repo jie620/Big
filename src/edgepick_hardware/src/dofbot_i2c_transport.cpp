@@ -64,9 +64,13 @@ std::optional<double> servo_angle_from_raw(std::size_t index, std::uint16_t raw)
   } else {
     position = static_cast<int>(
       180.0 * (static_cast<double>(raw) - 900.0) / (3100.0 - 900.0));
-    if (position < 0 || position > 180) {
+    // The vendor board can report a few counts above the nominal 3100 end
+    // stop (observed 0x0c2c/3116). Accept the small calibration overshoot and
+    // clamp it to the physical endpoint instead of rejecting startup.
+    if (position < -5 || position > 185) {
       return std::nullopt;
     }
+    position = std::clamp(position, 0, 180);
   }
 
   double angle = static_cast<double>(position);
@@ -237,8 +241,17 @@ std::optional<std::array<double, kJointCount>> DofbotI2cTransport::read_servo_an
 
   std::array<double, kJointCount> angles{};
   for (std::size_t index = 0; index < kJointCount; ++index) {
-    const auto raw = bus_->read_word(
-      config_.address, static_cast<std::uint8_t>(kServoReadRegisterBase + index + 1U));
+    std::optional<std::uint16_t> raw;
+    // The vendor board occasionally NACKs one poll while it is applying a
+    // multi-servo frame. Retry that individual register before failing the
+    // complete feedback sample.
+    for (int attempt = 0; attempt < 2 && !raw.has_value(); ++attempt) {
+      raw = bus_->read_word(
+        config_.address, static_cast<std::uint8_t>(kServoReadRegisterBase + index + 1U));
+      if (!raw.has_value()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{3});
+      }
+    }
     if (!raw.has_value()) {
       std::fprintf(
         stderr, "edgepick_hardware: failed to read servo %zu at register 0x%02x\n",

@@ -16,6 +16,11 @@ namespace edgepick_hardware
 namespace
 {
 
+constexpr std::array<double, kJointCount> kRosMin{
+  {-1.5708, -1.5708, -1.5708, -1.5708, -1.5708, -1.5708}};
+constexpr std::array<double, kJointCount> kRosMax{
+  {1.5708, 1.5708, 1.5708, 1.5708, 3.1416, 0.2}};
+
 bool is_position_interface(const hardware_interface::InterfaceInfo & interface)
 {
   return interface.name == hardware_interface::HW_IF_POSITION;
@@ -107,7 +112,9 @@ hardware_interface::CallbackReturn MockSystemInterface::on_init(
   // Keep the gateway policy here so controller-manager traffic still passes
   // through the same command safety gate used by lower-level tests.
   GatewayConfig config;
-  config.min_command_interval = std::chrono::milliseconds{20};
+  // Keep command traffic below the drive board's reliable rate.  At the real
+  // control launch's 20 Hz update rate this permits one frame per cycle.
+  config.min_command_interval = std::chrono::milliseconds{50};
   gateway_.emplace(*transport_, config);
 
   if (use_real_i2c_) {
@@ -175,11 +182,24 @@ hardware_interface::return_type MockSystemInterface::read(
 {
   if (use_real_i2c_) {
     const auto now = std::chrono::steady_clock::now();
-    if (now - last_real_read_at_ >= std::chrono::milliseconds{50}) {
-      // A feedback failure latches the write gate; never keep moving blindly.
-      if (!read_real_servo_state(false)) {
-        feedback_failed_ = true;
-        return hardware_interface::return_type::ERROR;
+    if (now - last_real_read_at_ >= std::chrono::milliseconds{150}) {
+      // The controller can report a transient I2C NACK while the servo board
+      // is processing a command. Retry before declaring the hardware failed.
+      bool read_succeeded = false;
+      for (int attempt = 0; attempt < 2 && !read_succeeded; ++attempt) {
+        read_succeeded = read_real_servo_state(false);
+        if (!read_succeeded) {
+          std::this_thread::sleep_for(std::chrono::milliseconds{3});
+        }
+      }
+      if (!read_succeeded) {
+        ++consecutive_read_failures_;
+        feedback_failed_ = consecutive_read_failures_ >= 3;
+        // Keep the component alive so a later successful poll can recover;
+        // write() remains blocked while feedback is unhealthy.
+      } else {
+        consecutive_read_failures_ = 0;
+        feedback_failed_ = false;
       }
       last_real_read_at_ = now;
     }
@@ -191,11 +211,37 @@ hardware_interface::return_type MockSystemInterface::write(
   const rclcpp::Time & time,
   const rclcpp::Duration & period)
 {
-  if (!gateway_.has_value() || feedback_failed_) {
+  if (!gateway_.has_value()) {
     return hardware_interface::return_type::ERROR;
   }
 
-  const JointCommand command = build_command_from_ros_positions();
+  if (feedback_failed_) {
+    // A transient feedback outage must not transition the whole hardware
+    // component to ERROR.  Hold the last measured pose and let the active
+    // trajectory fail its feedback tolerance; the next healthy poll can then
+    // resume accepting goals without restarting controller_manager.
+    std::copy(state_positions_rad_.begin(), state_positions_rad_.end(),
+      command_positions_rad_.begin());
+    last_write_status_ = CommandStatus::kTransportError;
+    return hardware_interface::return_type::OK;
+  }
+
+  for (std::size_t index = 0; index < kJointCount; ++index) {
+    const double value = command_positions_rad_[index];
+    if (!std::isfinite(value) || value < kRosMin[index] || value > kRosMax[index]) {
+      std::fprintf(
+        stderr, "edgepick_hardware: rejected joint %zu command %.6f rad outside [%.6f, %.6f]\n",
+        index, value, kRosMin[index], kRosMax[index]);
+      std::copy(state_positions_rad_.begin(), state_positions_rad_.end(),
+        command_positions_rad_.begin());
+      last_write_status_ = CommandStatus::kInvalidJointAngle;
+      // Keep ros2_control alive. The controller will observe that measured
+      // state cannot reach the rejected goal and abort it by its constraints.
+      return hardware_interface::return_type::OK;
+    }
+  }
+
+  const JointCommand command = build_command_from_ros_positions(period);
   const CommandStatus status = gateway_->submit(command, steady_time_from_ros_time(time));
   last_write_status_ = status;
 
@@ -219,6 +265,12 @@ hardware_interface::return_type MockSystemInterface::write(
     // Soft rejections are expected during controller updates, so they should not
     // make controller_manager treat the hardware component as failed.
     std::fill(state_velocities_rad_s_.begin(), state_velocities_rad_s_.end(), 0.0);
+    return hardware_interface::return_type::OK;
+  }
+
+  if (status == CommandStatus::kTransportError) {
+    // I2C errors are recoverable. Do not make controller_manager permanently
+    // deactivate the hardware after one blocked/NACKed frame.
     return hardware_interface::return_type::OK;
   }
 
@@ -322,10 +374,23 @@ double MockSystemInterface::initial_position_for(
   }
 }
 
-JointCommand MockSystemInterface::build_command_from_ros_positions() const
+JointCommand MockSystemInterface::build_command_from_ros_positions(const rclcpp::Duration & period) const
 {
   JointCommand command;
   command.motion_time = motion_time_;
+  // JointTrajectoryController streams interpolated points at the controller
+  // update rate.  Reusing a long servo interpolation time for every point
+  // restarts the physical move on each write, so the arm only advances a
+  // fraction of the trajectory.  Let the controller own the trajectory
+  // timing and use a short per-frame I2C move (roughly two update periods).
+  if (use_real_i2c_) {
+    const auto period_ns = period.nanoseconds();
+    if (period_ns > 0) {
+      const auto streamed_ms = std::chrono::milliseconds{
+        std::max<long long>(20, (period_ns * 2) / 1000000)};
+      command.motion_time = std::min(command.motion_time, streamed_ms);
+    }
+  }
   RosPositions positions_rad{};
   std::copy(command_positions_rad_.begin(), command_positions_rad_.end(), positions_rad.begin());
   command.angles_deg = ros_positions_to_servo_degrees(positions_rad);

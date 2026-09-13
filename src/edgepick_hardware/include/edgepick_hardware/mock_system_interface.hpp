@@ -55,7 +55,7 @@ private:
   bool component_has_supported_state_interfaces(
     const hardware_interface::ComponentInfo & component) const;
   double initial_position_for(const hardware_interface::ComponentInfo & component) const;
-  JointCommand build_command_from_ros_positions() const;
+  JointCommand build_command_from_ros_positions(const rclcpp::Duration & period) const;
   bool read_real_servo_state(bool sync_command_positions);
   std::chrono::steady_clock::time_point steady_time_from_ros_time(
     const rclcpp::Time & time) const;
@@ -76,6 +76,7 @@ private:
   MockTransport * mock_transport_{nullptr};
   bool use_real_i2c_{false};
   bool feedback_failed_{false};
+  unsigned int consecutive_read_failures_{0};
   std::chrono::steady_clock::time_point last_real_read_at_{};
   std::optional<CommandGateway> gateway_;
   std::optional<CommandStatus> last_write_status_;

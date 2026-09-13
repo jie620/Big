@@ -3,7 +3,10 @@
 # controller action names remain compatible with move_group.
 controller_manager:
   ros__parameters:
-    update_rate: 100
+    # The DOFBOT I2C servo board cannot reliably consume a 100 Hz stream.
+    # 20 Hz leaves enough bus/servo settling time while preserving smooth
+    # JointTrajectoryController interpolation.
+    update_rate: 20
 
     arm_group_controller:
       type: joint_trajectory_controller/JointTrajectoryController
@@ -27,6 +30,14 @@ arm_group_controller:
     state_interfaces:
       - position
       - velocity
+    allow_partial_joints_goal: false
+    allow_nonzero_velocity_at_trajectory_end: false
+    constraints:
+      # Require the measured state to settle before reporting action success.
+      stopped_velocity_tolerance: 0.05
+      goal_time: 2.0
+      trajectory: 0.05
+      goal: 0.05
 
 grip_group_controller:
   ros__parameters:

@@ -14,7 +14,9 @@
       </hardware>
 
       <joint name="Arm1_Joint">
-        <command_interface name="position"/>
+        <command_interface name="position">
+          <param name="min">-1.5708</param><param name="max">1.5708</param>
+        </command_interface>
         <state_interface name="position">
           <param name="initial_value">${initial_positions['Arm1_Joint']}</param>
         </state_interface>
@@ -22,7 +24,9 @@
       </joint>
 
       <joint name="Arm2_Joint">
-        <command_interface name="position"/>
+        <command_interface name="position">
+          <param name="min">-1.5708</param><param name="max">1.5708</param>
+        </command_interface>
         <state_interface name="position">
           <param name="initial_value">${initial_positions['Arm2_Joint']}</param>
         </state_interface>
@@ -30,7 +34,9 @@
       </joint>
 
       <joint name="Arm3_Joint">
-        <command_interface name="position"/>
+        <command_interface name="position">
+          <param name="min">-1.5708</param><param name="max">1.5708</param>
+        </command_interface>
         <state_interface name="position">
           <param name="initial_value">${initial_positions['Arm3_Joint']}</param>
         </state_interface>
@@ -38,7 +44,9 @@
       </joint>
 
       <joint name="Arm4_Joint">
-        <command_interface name="position"/>
+        <command_interface name="position">
+          <param name="min">-1.5708</param><param name="max">1.5708</param>
+        </command_interface>
         <state_interface name="position">
           <param name="initial_value">${initial_positions['Arm4_Joint']}</param>
         </state_interface>
@@ -46,7 +54,9 @@
       </joint>
 
       <joint name="Arm5_Joint">
-        <command_interface name="position"/>
+        <command_interface name="position">
+          <param name="min">-1.5708</param><param name="max">3.1416</param>
+        </command_interface>
         <state_interface name="position">
           <param name="initial_value">${initial_positions['Arm5_Joint']}</param>
         </state_interface>
@@ -54,7 +64,9 @@
       </joint>
 
       <joint name="grip_joint">
-        <command_interface name="position"/>
+        <command_interface name="position">
+          <param name="min">-1.5708</param><param name="max">0.2</param>
+        </command_interface>
         <state_interface name="position">
           <param name="initial_value">${initial_positions['grip_joint']}</param>
         </state_interface>
