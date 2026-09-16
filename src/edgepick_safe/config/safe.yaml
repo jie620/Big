@@ -1,0 +1,26 @@
+safety_gate:
+  ros__parameters:
+    observation_timeout: 1.0
+    scene_timeout: 2.0
+    policy_timeout: 10.0
+    max_joint_step: 0.35
+    execution_timeout: 15.0
+    planning_retries: 2
+    destination: [0.16, 0.16, 0.04]
+    place_radius: 0.06
+    payload_radius: 0.035
+safe_policy:
+  ros__parameters:
+    observation_timeout: 1.0
+    proposal_ttl_ms: 8000
+    device: cuda
+safe_perception:
+  ros__parameters:
+    target_label: orange
+    confidence: 0.5
+    observation_timeout: 1.0
+    destination: [0.16, 0.16, 0.04]
+    place_radius: 0.06
+    surface_z: -0.01
+    voxel_size: 0.025
+    max_voxels: 4000

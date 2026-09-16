@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>edgepick_safe</name><version>0.1.0</version>
+  <description>Fail-closed VLA proposal, MoveIt safety arbitration and visual place verification.</description>
+  <maintainer email="edgepick@example.invalid">EdgePick</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend><buildtool_depend>ament_cmake_python</buildtool_depend>
+  <depend>rclcpp</depend><depend>rclpy</depend><depend>edgepick_interfaces</depend>
+  <depend>sensor_msgs</depend><depend>geometry_msgs</depend><depend>std_msgs</depend><depend>std_srvs</depend>
+  <depend>moveit_ros_planning_interface</depend><depend>moveit_ros_planning</depend><depend>moveit_msgs</depend>
+  <depend>tf2_ros</depend><depend>tf2_geometry_msgs</depend><depend>cv_bridge</depend>
+  <depend>geometric_shapes</depend><depend>shape_msgs</depend><depend>control_msgs</depend><depend>trajectory_msgs</depend><depend>sensor_msgs_py</depend>
+  <exec_depend>edgepick_hardware</exec_depend><exec_depend>edgepick_bringup</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend><exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>launch_ros</exec_depend><exec_depend>python3-numpy</exec_depend><exec_depend>python3-yaml</exec_depend>
+  <test_depend>ament_cmake_gtest</test_depend><test_depend>ament_cmake_pytest</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

@@ -194,9 +194,13 @@ hardware_interface::return_type MockSystemInterface::read(
       }
       if (!read_succeeded) {
         ++consecutive_read_failures_;
-        feedback_failed_ = consecutive_read_failures_ >= 3;
-        // Keep the component alive so a later successful poll can recover;
-        // write() remains blocked while feedback is unhealthy.
+        feedback_failed_ = true;
+        if (consecutive_read_failures_ >= 3) {
+          // Persistent feedback loss must abort ros2_control execution.
+          return hardware_interface::return_type::ERROR;
+        }
+        // A transient read failure blocks writes immediately; a healthy
+        // retry may recover before the persistent-failure threshold.
       } else {
         consecutive_read_failures_ = 0;
         feedback_failed_ = false;
@@ -269,9 +273,9 @@ hardware_interface::return_type MockSystemInterface::write(
   }
 
   if (status == CommandStatus::kTransportError) {
-    // I2C errors are recoverable. Do not make controller_manager permanently
-    // deactivate the hardware after one blocked/NACKed frame.
-    return hardware_interface::return_type::OK;
+    // A failed write cannot count as accepted motion. Abort the active
+    // controller path; recovery requires explicit reactivation.
+    return hardware_interface::return_type::ERROR;
   }
 
   return hardware_interface::return_type::ERROR;

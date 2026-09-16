@@ -27,3 +27,10 @@ data/
 
 # Vendor robot description reference
 !vendor/yahboom/dofbot_pro_description/urdf/DOFBOT_Pro-V24.csv
+
+!models/yolo/orange.pt
+
+# Local Python environment and model packages
+.venv-vla/
+models/vla/
+models/vla_training/

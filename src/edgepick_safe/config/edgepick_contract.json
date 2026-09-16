@@ -1,0 +1,6 @@
+{
+  "joint_names": ["Arm1_Joint", "Arm2_Joint", "Arm3_Joint", "Arm4_Joint", "Arm5_Joint", "grip_joint"],
+  "action_units": "radian",
+  "action_mode": "absolute_joint_position",
+  "observation": "registered RGB; joint positions in ROS radians, same camera viewpoint as training"
+}

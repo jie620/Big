@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from edgepick_safe.perception import main
+main()

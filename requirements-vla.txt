@@ -1,0 +1,19 @@
+# Keep NVIDIA's JetPack torch/torchvision from system site packages.
+# Create .venv-vla with /usr/bin/python3 (ROS Humble uses Python 3.10).
+draccus==0.10.0
+diffusers==0.31.0
+transformers==4.51.3
+accelerate>=1.0,<2
+safetensors>=0.4.5
+huggingface-hub>=0.28,<1
+numpy<2
+opencv-python>=4.8,<5
+mujoco==3.12.0
+ultralytics==8.3.65
+torch-pruning>=1.5,<2
+datasets>=3.0,<4
+av>=14
+pyarrow>=15
+jsonlines
+termcolor
+wandb>=0.19

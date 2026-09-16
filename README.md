@@ -327,8 +327,10 @@ colcon test-result --test-result-base build --all --verbose
 
 完成 RGB-D 注册与手眼标定后的实机验收；记录任务事件、实际抓取结果和失败原因。自动对象验证、恢复重抓与资源自适应仍属后续功能。
 
-### 阶段 22：SmolVLA 首阶段接入
+### 阶段 22：SmolVLA 安全链路接入
 
-新增 `edgepick_vla` 包和 `VLAAction` 消息。`smolvla_node` 读取 `/camera/color/image_raw`、`/joint_states` 和 `/camera/depth/points`，调用本地 SmolVLA checkpoint，并发布 `/edgepick/vla/action` 与关节轨迹；`edgepick_vla_real.launch.py` 组合 Orbbec、真实 I2C ros2_control 和 VLA 节点。
+VLA 仅发布 `/edgepick/vla/proposal`，由 `edgepick_safe` 的 Safety Gate 仲裁，经 MoveIt 碰撞规划后走现有 ros2_control / CommandGateway。旧 VLA 节点已移除直发控制器轨迹的路径，旧 launch 也进入默认关闭的 Mock 安全入口。
 
-当前点云只接入观测链路，不执行动态避障；VLA 真机执行前仍需完成动作限幅、控制源独占、低速无物体验证、相机/关节时间同步和急停验证。构建验证：六个包构建通过，Python 语法检查通过；尚无真机 VLA 运动证据。
+完整构建、模型契约、Mock / MuJoCo / 真机启动和验证边界见 [安全 VLA 系统说明](docs/SAFE_VLA.md)。新增目的地深度复核、携带物碰撞体、执行中碰撞取消、急停/目标/场景/策略心跳超时、故障锁定，以及数据训练与 YOLO 压缩/导出/评测脚本。所有代码、仿真模型和运行环境统一位于 Big。
+
+七个 ROS 包构建通过，新增安全包及受影响的软件测试通过，隔离域的 10 项 ROS Mock 运行检查通过（含执行中动态障碍取消）。最终 VLA 模型尚未提供，尚未验证完整模型抓放、相机标定、真实抓取和项目描述中的性能指标。
