@@ -51,7 +51,9 @@ class MujocoBackend(Node):
         self.depth=self.create_publisher(Image,"/camera/aligned_depth_to_color/image_raw",10)
         self.info=self.create_publisher(CameraInfo,"/camera/color/camera_info",10)
         self.attached=False;self.offset=None
-        self.orange=mujoco.mj_name2id(self.model,mujoco.mjtObj.mjOBJ_BODY,"orange")
+        self.cube=mujoco.mj_name2id(self.model,mujoco.mjtObj.mjOBJ_BODY,"target_cube")
+        if self.cube < 0:
+            raise ValueError("MuJoCo scene must contain target_cube body")
         self.site=mujoco.mj_name2id(self.model,mujoco.mjtObj.mjOBJ_SITE,"grasp_point")
         self.thread=threading.Thread(target=self.physics,daemon=True);self.thread.start()
         self.create_timer(0.05,self.publish_state)
@@ -131,10 +133,10 @@ class MujocoBackend(Node):
                     grip=self.data.qpos[self.address[5]]
                     before=self.attached
                     if self.attached and grip> -0.2:self.attached=False
-                    elif not self.attached and grip<=-0.5 and np.linalg.norm(self.data.xpos[self.orange]-self.data.site_xpos[self.site])<0.05:
-                        self.attached=True;self.offset=self.data.xpos[self.orange]-self.data.site_xpos[self.site]
+                    elif not self.attached and grip<=-0.5 and np.linalg.norm(self.data.xpos[self.cube]-self.data.site_xpos[self.site])<0.05:
+                        self.attached=True;self.offset=self.data.xpos[self.cube]-self.data.site_xpos[self.site]
                     if self.attached:
-                        j=self.model.body_jntadr[self.orange];address=self.model.jnt_qposadr[j]
+                        j=self.model.body_jntadr[self.cube];address=self.model.jnt_qposadr[j]
                         self.data.qpos[address:address+3]=self.data.site_xpos[self.site]+self.offset
                         self.data.qvel[self.model.jnt_dofadr[j]:self.model.jnt_dofadr[j]+6]=0
                         self.mj.mj_forward(self.model,self.data)
@@ -154,6 +156,9 @@ class MujocoBackend(Node):
         with self.lock:
             self.renderer.update_scene(self.data,camera="yolo");rgb=self.renderer.render().copy()
             self.renderer.enable_depth_rendering();depth=self.renderer.render().copy();self.renderer.disable_depth_rendering()
+            # MuJoCo background pixels are at the far clipping plane. Keep the
+            # ROS depth contract in meters and bounded to the policy range.
+            depth=np.nan_to_num(depth,nan=1.5,posinf=1.5,neginf=0.0);depth=np.clip(depth,0.0,1.5).astype(np.float32)
             rotation=self.data.cam_xmat[camera].reshape(3,3)@np.diag([1,-1,-1])
             quaternion=np.zeros(4);self.mj.mju_mat2Quat(quaternion,rotation.ravel())
             transform=TransformStamped(header=Header(stamp=header.stamp,frame_id="base_link"),child_frame_id=header.frame_id)

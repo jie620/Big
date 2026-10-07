@@ -1,4 +1,5 @@
 #include "edgepick_safe/gate.hpp"
+#include "edgepick_safe/placement.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -28,6 +29,7 @@
 
 using namespace std::chrono_literals;
 using edgepick_safe::joints;
+using edgepick_safe::target_footprint_coverage;
 using MoveGroup = moveit::planning_interface::MoveGroupInterface;
 class SafetyExecutor : public rclcpp::Node {
  public:
@@ -40,11 +42,15 @@ class SafetyExecutor : public rclcpp::Node {
     gate_.max_step=declare_parameter("max_joint_step",0.35);
     execution_timeout_=declare_parameter("execution_timeout",15.0);
     retries_=declare_parameter("planning_retries",2);
-    destination_=declare_parameter<std::vector<double>>("destination",{0.16,0.16,0.04});
+    destination_=declare_parameter<std::vector<double>>("destination",{0.12,0.30,0.04});
     radius_=declare_parameter("place_radius",0.06);
+    target_side_=declare_parameter("target_side",0.03);
+    zone_side_=declare_parameter("place_zone_side",0.05);
+    coverage_threshold_=declare_parameter("place_coverage_threshold",0.5);
     payload_radius_=declare_parameter("payload_radius",0.035);
     if(destination_.size()!=3 || !std::all_of(destination_.begin(),destination_.end(),[](double x){return std::isfinite(x);}) ||
-       radius_<=0 || payload_radius_<=0 || execution_timeout_<=0 || retries_<0 || retries_>5 ||
+       radius_<=0 || target_side_<=0 || zone_side_<=0 || coverage_threshold_<=0 || coverage_threshold_>1 ||
+       payload_radius_<=0 || execution_timeout_<=0 || retries_<0 || retries_>5 ||
        gate_.max_step<=0 || gate_.observation_timeout<=0 || gate_.scene_timeout<=0 || gate_.policy_timeout<=0)
       throw std::runtime_error("invalid safety configuration");
     events_=create_publisher<std_msgs::msg::String>("/edgepick/safe/event",10);
@@ -168,20 +174,32 @@ class SafetyExecutor : public rclcpp::Node {
     std_msgs::msg::String s; s.data=phase_; states_->publish(s);
   }
   void accept(const edgepick_interfaces::msg::VLAAction & m){
-    std::lock_guard<std::mutex> l(lock_);
-    if(!initialized_ || busy_ || phase_=="succeeded") return;
-    if(m.joint_names.size()!=6 || m.positions.size()!=6 || m.velocities.size()!=0) {event("invalid_action_shape");return;}
-    for(size_t i=0;i<6;++i) if(m.joint_names[i]!=joints[i]) {event("joint_order_mismatch");return;}
-    std::array<double,6> q; std::copy(m.positions.begin(),m.positions.end(),q.begin());
-    double stamp=rclcpp::Time(m.header.stamp).seconds();
-    auto why=gate_.proposal(now().seconds(),stamp,m.valid_for_ms/1000.0,m.sequence_id,q);
-    if(!why.empty()){event(why);return;}
-    gate_.sequence=m.sequence_id; cancelled_=false; busy_=true;
-    if(worker_.joinable()) worker_.join();
-    worker_=std::thread([this,q,stamp,ttl=m.valid_for_ms/1000.0]{
-      try { run(q,stamp+ttl); } catch(const std::exception & e){ std::lock_guard<std::mutex> l(lock_); stop_locked(std::string("exception:")+e.what()); }
-      busy_=false;
-    });
+    std::thread previous;
+    std::array<double,6> q;
+    double deadline;
+    {
+      std::lock_guard<std::mutex> l(lock_);
+      if(!initialized_ || busy_ || phase_=="succeeded") return;
+      if(m.joint_names.size()!=6 || m.positions.size()!=6 || m.velocities.size()!=0) {event("invalid_action_shape");return;}
+      for(size_t i=0;i<6;++i) if(m.joint_names[i]!=joints[i]) {event("joint_order_mismatch");return;}
+      std::copy(m.positions.begin(),m.positions.end(),q.begin());
+      double stamp=rclcpp::Time(m.header.stamp).seconds();
+      auto why=gate_.proposal(now().seconds(),stamp,m.valid_for_ms/1000.0,m.sequence_id,q);
+      if(!why.empty()){event(why);return;}
+      gate_.sequence=m.sequence_id; cancelled_=false; busy_=true;
+      deadline=stamp+m.valid_for_ms/1000.0;
+      if(worker_.joinable()) previous=std::move(worker_);
+    }
+    // A completed worker is still joinable. Join it outside lock_ because its
+    // final error/status path may need the same mutex.
+    if(previous.joinable()) previous.join();
+    {
+      std::lock_guard<std::mutex> l(lock_);
+      worker_=std::thread([this,q,deadline]{
+        try { run(q,deadline); } catch(const std::exception & e){ std::lock_guard<std::mutex> l(lock_); stop_locked(std::string("exception:")+e.what()); }
+        busy_=false;
+      });
+    }
   }
   bool healthy(double deadline){
     std::lock_guard<std::mutex> l(lock_);
@@ -290,7 +308,10 @@ class SafetyExecutor : public rclcpp::Node {
       double released=now().seconds(); bool verified=false;
       for(int i=0;i<40 && healthy(INFINITY);++i){
         {std::lock_guard<std::mutex> l(lock_); auto p=target_.point;
-          if(gate_.target_at>released && std::hypot(p.x-destination_[0],p.y-destination_[1])<radius_ && std::abs(p.z-destination_[2])<radius_) {verified=true;break;}}
+          const double coverage=target_footprint_coverage(
+            p.x,p.y,target_side_,destination_[0],destination_[1],zone_side_);
+          if(gate_.target_at>released && coverage>=coverage_threshold_ &&
+             std::abs(p.z-destination_[2])<radius_) {verified=true;break;}}
         std::this_thread::sleep_for(50ms);
       }
       if(!verified){fail("place_not_verified");return;}
@@ -303,7 +324,8 @@ class SafetyExecutor : public rclcpp::Node {
   edgepick_safe::Gate gate_; std::mutex lock_; std::thread worker_;
   std::atomic<bool> busy_{false},cancelled_{false},initialized_{false};
   double destination_at_=0;
-  bool real_,calibrated_; int retries_; double radius_,payload_radius_,execution_timeout_;
+  bool real_,calibrated_; int retries_;
+  double radius_,target_side_,zone_side_,coverage_threshold_,payload_radius_,execution_timeout_;
   std::vector<double> destination_; std::string phase_="disarmed";
   geometry_msgs::msg::PointStamped target_;
   tf2_ros::Buffer buffer_; tf2_ros::TransformListener listener_;

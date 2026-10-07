@@ -31,7 +31,9 @@ class MockInputs(Node):
         self.create_subscription(Bool,"/edgepick/safe/ready",self.on_ready,1)
         self.create_subscription(JointState,"/joint_states",self.on_joints,10)
         self.arm=self.create_client(Trigger,"/edgepick/safe/arm")
-        self.apply=self.create_client(ApplyPlanningScene,"/apply_planning_scene")
+        # Use the same guarded service as real perception. Publishing directly
+        # to MoveIt's service would bypass the Safety Gate's scene watchdog.
+        self.apply=self.create_client(ApplyPlanningScene,"/edgepick/safe/apply_observation")
         self.create_timer(0.1,self.tick)
     def on_ready(self,m):
         if not m.data:self.sent=False
@@ -50,7 +52,7 @@ class MockInputs(Node):
         if not(fault and self.scenario=="depth_timeout") and self.apply.service_is_ready() and (self.future is None or self.future.done()):
             scene=PlanningScene(is_diff=True);scene.robot_state.is_diff=True
             if fault and self.scenario=="collision":scene.world.collision_objects=[box("mock_obstacle",[0,0,0.25],[0.3,0.3,0.3])]
-            if self.scenario=="destination_blocked":scene.world.collision_objects=[box("destination_blocked",[0.16,0.16,0.04],[0.12]*3)]
+            if self.scenario=="destination_blocked":scene.world.collision_objects=[box("destination_blocked",[0.12,0.30,0.04],[0.12]*3)]
             self.future=self.apply.call_async(ApplyPlanningScene.Request(scene=scene))
             self.future.add_done_callback(lambda future,h=header:self.on_scene(future,h))
         if self.auto and not self.armed and elapsed>4 and time.monotonic()-self.last_arm>2 and self.arm.service_is_ready():

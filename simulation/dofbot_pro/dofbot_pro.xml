@@ -36,20 +36,33 @@
     <texture name="checker" type="2d" builtin="checker" width="512" height="512" rgb1="0.03 0.08 0.18" rgb2="0.28 0.48 0.78" />
     <material name="grid" texture="checker" texrepeat="1 1" texuniform="true" reflectance="0.2" />
     <material name="visualgeom" rgba="0.5 0.9 0.2 1" />
-    <material name="orange" rgba="1.0 0.62 0.03 1" />
+    <material name="target_yellow" rgba="0.98 0.82 0.04 1" />
+    <material name="green" rgba="0.08 0.75 0.18 1" />
+    <material name="blue" rgba="0.05 0.25 0.95 1" />
+    <material name="red" rgba="0.95 0.04 0.04 1" />
   </asset>
 
   <worldbody>
     <light directional="true" diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1" pos="0 0 5.0" dir="0 0 -1" castshadow="false" />
     <light directional="true" diffuse="0.6 0.6 0.6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1" />
     <geom name="ground" type="plane" pos="0 0 -0.005" size="100 100 0.001" quat="1 0 0 0" material="grid" condim="3" conaffinity="15" />
-    <!-- 6 cm diameter x 6 cm height orange, 10 cm in front of base (-Y). -->
-    <body name="orange" pos="0 0.3 0.025">
-      <freejoint name="orange_free" />
-      <geom name="orange_geom" type="sphere" size="0.03" material="orange" density="500" friction="0.8 0.1 0.1" />
+    <!-- Yellow target cube: 3 cm x 3 cm x 3 cm. -->
+    <body name="target_cube" pos="0 0.2 0.01">
+      <freejoint name="target_cube_free" />
+      <!-- High-friction simulation target; real-object contact must be tuned separately. -->
+      <geom name="target_cube_geom" type="box" size="0.015 0.015 0.015" material="target_yellow" density="10" condim="6" friction="8 2 1" contype="1" conaffinity="1" solref="0.002 1" solimp="0.95 0.99 0.001" />
     </body>
-    <body name="route_obstacle" pos="0.12 0.12 0.065">
-      <geom name="route_obstacle_geom" type="box" size="0.025 0.025 0.07" rgba="0.8 0.15 0.15 1" contype="1" conaffinity="1"/>
+    <!-- Static pick-route blocker: 3 cm x 3 cm x 6 cm. -->
+    <body name="obstacle_pick" pos="-0.10 0.24 0.025">
+      <geom name="obstacle_pick_geom" type="box" size="0.015 0.015 0.03" material="green" contype="1" conaffinity="1" friction="0.8 0.2 0.2" density="1000" />
+    </body>
+    <!-- Static place-route blocker: 3 cm x 3 cm x 6 cm. -->
+    <body name="obstacle_place" pos="0.10 0.18 0.025">
+      <geom name="obstacle_place_geom" type="box" size="0.015 0.015 0.03" material="blue" contype="1" conaffinity="1" friction="0.8 0.2 0.2" density="1000" />
+    </body>
+    <!-- Red place zone: 5 cm x 5 cm; success uses target-footprint overlap. -->
+    <body name="place_zone" pos="0.12 0.30 -0.0045">
+      <geom name="place_zone_geom" type="box" size="0.025 0.025 0.0005" material="red" contype="0" conaffinity="0" />
     </body>
     <camera name="fixed" pos="0 -3.0 0.6612323244720535" xyaxes="1 0 0 0 0 1" />
     <camera name="track" mode="trackcom" pos="0 -3.0 0.6612323244720535" xyaxes="1 0 0 0 0 1" />
@@ -82,8 +95,8 @@
               <body name="Arm5_Link" pos="0 0.078149 0.00215">
                 <inertial pos="0.0021813 0.0258955 -0.0140283" quat="0.573694 0.407221 0.592547 0.392344" mass="0.0552577" diaginertia="1.05893e-05 9.38262e-06 6.25638e-06" />
                 <joint name="Arm5_Joint" range="-1.5708 3.1416" actuatorfrcrange="-100 100" axis="0 1 0" />
-                <!-- Wrist camera: move it behind the gripper to reduce pre-grasp self-occlusion. -->
-                <camera name="yolo" pos="0 0.03 0.05" xyaxes="1 0 0 0 0 1" fovy="60" />
+                <!-- Wrist camera: preserve position and field of view; optical axis is tilted down 10 degrees. -->
+                <camera name="yolo" pos="0 0.03 0.05" xyaxes="1 0 0 0 0.173648 0.984808" fovy="60" />
                 <site name="grasp_point" pos="0 0.08 0" size="0.008" rgba="0.1 1 0.1 1" />
                 <geom type="mesh" rgba="0.25098 0.25098 0.25098 1" mesh="Arm5_Link" contype="1" conaffinity="0" density="0" group="1" class="visualgeom" />
                 <geom type="mesh" rgba="0.25098 0.25098 0.25098 0" mesh="Arm5_Link" group="3" />
@@ -98,6 +111,8 @@
                     <inertial pos="0.0226141 0.00598033 -0.0015" quat="-0.0554899 0.704926 0.0554899 0.704926" mass="0.00614487" diaginertia="1.57602e-06 1.5385e-06 4.67285e-08" />
                     <joint name="rlink_joint2" range="-1.6 0" axis="0 0 1" />
                     <geom type="mesh" rgba="1 1 1 1" mesh="rlink2" contype="1" conaffinity="0" density="0" group="1" class="visualgeom" />
+                    <!-- Physical contact pad at the right finger tip. -->
+                    <geom name="right_finger_pad" type="box" pos="0.0314 -0.0070 -0.0244" size="0.005 0.006 0.010" rgba="0 0 0 0" condim="6" contype="1" conaffinity="0" friction="20 3 1" solref="0.001 1" solimp="0.95 0.99 0.001" />
                     <geom type="mesh" rgba="1 1 1 0" mesh="rlink2" group="3" />
                   </body>
                 </body>
@@ -110,6 +125,8 @@
                     <inertial pos="0.0226936 -0.00567118 -0.0015" quat="0.0506787 0.705288 -0.0506787 0.705288" mass="0.00614487" diaginertia="1.57602e-06 1.5385e-06 4.67285e-08" />
                     <joint name="llink_joint2" range="0 1.6" axis="0 0 1" />
                     <geom type="mesh" rgba="1 1 1 1" mesh="llink2" contype="1" conaffinity="0" density="0" group="1" class="visualgeom" />
+                    <!-- Physical contact pad at the left finger tip. -->
+                    <geom name="left_finger_pad" type="box" pos="0.0313 0.0071 -0.0242" size="0.005 0.006 0.010" rgba="0 0 0 0" condim="6" contype="1" conaffinity="0" friction="20 3 1" solref="0.001 1" solimp="0.95 0.99 0.001" />
                     <geom type="mesh" rgba="1 1 1 0" mesh="llink2" group="3" />
                   </body>
                 </body>
@@ -143,12 +160,13 @@
 
   <!-- Control tuning: kp/kv set response speed/damping; forcerange limits torque. -->
   <actuator>
-    <position name="Arm1_Joint" joint="Arm1_Joint" kp="8" kv="0.8" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
-    <position name="Arm2_Joint" joint="Arm2_Joint" kp="8" kv="0.8" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
-    <position name="Arm3_Joint" joint="Arm3_Joint" kp="8" kv="0.8" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
-    <position name="Arm4_Joint" joint="Arm4_Joint" kp="8" kv="0.8" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
-    <position name="Arm5_Joint" joint="Arm5_Joint" kp="8" kv="0.8" ctrlrange="-1.5708 3.1416" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
-    <position name="grip_joint" joint="grip_joint" kp="8" kv="0.8" ctrlrange="-1.6 0" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
+    <position name="Arm1_Joint" joint="Arm1_Joint" kp="30" kv="2" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
+    <position name="Arm2_Joint" joint="Arm2_Joint" kp="30" kv="2" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
+    <position name="Arm3_Joint" joint="Arm3_Joint" kp="30" kv="2" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
+    <position name="Arm4_Joint" joint="Arm4_Joint" kp="30" kv="2" ctrlrange="-1.5708 1.5708" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
+    <position name="Arm5_Joint" joint="Arm5_Joint" kp="30" kv="2" ctrlrange="-1.5708 3.1416" ctrllimited="true" forcelimited="true" forcerange="-5 5" />
+    <!-- The cube grasp is ramped in software and contact-limited. -->
+    <position name="grip_joint" joint="grip_joint" kp="25" kv="3" ctrlrange="-1.25 0" ctrllimited="true" forcelimited="true" forcerange="-8 8" />
   </actuator>
 
   <sensor>

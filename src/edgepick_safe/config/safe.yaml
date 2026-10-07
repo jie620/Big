@@ -6,21 +6,33 @@ safety_gate:
     max_joint_step: 0.35
     execution_timeout: 15.0
     planning_retries: 2
-    destination: [0.16, 0.16, 0.04]
+    destination: [0.12, 0.30, 0.04]
     place_radius: 0.06
+    target_side: 0.03
+    place_zone_side: 0.05
+    place_coverage_threshold: 0.5
     payload_radius: 0.035
 safe_policy:
   ros__parameters:
     observation_timeout: 1.0
     proposal_ttl_ms: 8000
     device: cuda
+    # Keep FP32 as the default for checkpoint parity. Enable on Jetson after
+    # comparing the action/latency report for the exact deployed checkpoint.
+    use_amp: false
 safe_perception:
   ros__parameters:
-    target_label: orange
+    target_label: cube
     confidence: 0.5
+    detector_device: auto
+    detector_half: true
     observation_timeout: 1.0
-    destination: [0.16, 0.16, 0.04]
+    destination: [0.12, 0.30, 0.04]
     place_radius: 0.06
-    surface_z: -0.01
+    place_zone_side: 0.05
+    surface_z: -0.004
+    rgbd_sync_tolerance: 0.1
+    sensor_buffer_size: 4
+    perception_rate_hz: 5.0
     voxel_size: 0.025
     max_voxels: 4000

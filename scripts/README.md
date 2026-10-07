@@ -1,10 +1,44 @@
-# 开发脚本
+# scripts
 
-只放置可重复执行的构建、启动、测量和数据导出脚本。脚本默认必须使用 mock 后端；任何触发真实机械臂动作的脚本需要显式参数开关。
+脚本按用途分为四类：
 
-- `check_dofbot_i2c.py`：阶段 15 真机前 I2C 预检脚本。默认只打开设备并选择地址，然后通过厂商 `Arm_Lib` 做读探针；`--scan` 会额外调用 `i2cdetect`，但扫描结果只作辅助参考。
-- `run_orange_grasp_validation.sh`：橘子抓取验证脚本。先启动 `orbbec_camera` 的 `dabai_dcw2.launch.py`，确认 `/camera/color/image_raw`、`/camera/depth/image_raw` 和 `/camera/depth/camera_info` 已发布，再启动抓取链路。默认 `USE_REAL_I2C=false` 做 dry-run（仍需相机）；真机必须显式设置 `USE_REAL_I2C=true`，其他 launch 参数可追加在脚本后。
+- `run_mock_checks.sh`、`integration_safe_mock.py`、`verify_safe_runtime.py`：无硬件回归。
+- `setup_vla_env.sh`、`prepare_checkpoint.py`、`train_vla.sh`：SmolVLA 环境、checkpoint 和训练。
+- `prepare_pt_checkpoint.py`：把自定义训练产生的 `best.pt` 转成 Big 可加载的 `model.safetensors` checkpoint。它会保留真实输入模态；如果源模型只有 RGB，不会伪造深度策略输入，深度仍由 Safety Gate 感知链路强制使用。
+- `compress_detector.py`、`export_detector.py`、`benchmark_detector.py`：YOLO 方块模型压缩和 TensorRT 测量。`benchmark_detector.py` 会在 CUDA 同步后报告端到端 P50/P95/P99，以及 Ultralytics 能提供的预处理、推理和后处理分项耗时。
+- `profile_ros_runtime.py`：只读观察运行中的 RGB、深度、关节和 VLA proposal 话题，记录本地到达周期和消息头时间戳年龄，不发布任何动作。
+- `check_dofbot_i2c.py`、`check_mujoco_backend.py`、`record_safe_run.py`：设备、仿真和运行证据检查。
 
-夹爪使用度数参数，例如 `gripper_close_angle_deg:=120.0`，旧的 `gripper_close_position` 弧度参数已移除。
-脚本的 topic 存在检查不证明 RGB-D 已注册；配套深度、内参与 frame 必须按[根 README](../README.md)核对。
-无设备测试使用 `python3 src/edgepick_task/test/runtime_safety_check.py`（仓库根目录、先 source install）。
+脚本不提供第二条真机启动路线。真实动作必须通过：
+
+```bash
+ros2 launch edgepick_bringup edgepick_system.launch.py mode:=real ...
+```
+
+任何物理动作前仍需独立硬件急停和实测 RGB-D/TF 验收。
+
+运行时 profiling 示例：
+
+```bash
+python3 scripts/profile_ros_runtime.py --duration 60 \
+  --output run_logs/runtime_profile.json
+```
+
+检测器基准会执行一次验证、若干预热推理，然后进行 CUDA 同步的计时循环：
+
+```bash
+python3 scripts/benchmark_detector.py models/yolo/cube.engine \
+  --data models/yolo/data.yaml --image /path/to/rgb.png \
+  --device 0 --warmup 20 --runs 100 \
+  --output run_logs/yolo_benchmark.json
+```
+
+`latency_ms` 是完整 `predict` 调用的时间；`preprocess_ms`、`inference_ms` 和 `postprocess_ms` 只在当前 Ultralytics 后端提供分项数据时出现。Jetson 的 TensorRT 或统一内存总占用仍应配合 `tegrastats` 观察。
+
+从当前方块训练快照转换示例：
+
+```bash
+python3 scripts/prepare_pt_checkpoint.py /home/jetson/Codex_Projects/Edge_AI/best.pt \
+  --output models/vla_cube_best \
+  --vlm-assets /home/jetson/.cache/huggingface/hub/models--HuggingFaceTB--SmolVLM2-500M-Video-Instruct/snapshots/7b375e1b73b11138ff12fe22c8f2822d8fe03467
+```

@@ -12,8 +12,8 @@ EdgePick 的 RGB-D 感知基础包。阶段 8 先实现相机内参、深度采�
 - `src/rgbd_target_candidate_node.cpp`：ROS 2 节点，订阅 depth image 与 camera info，发布目标候选点和可选任务事件。
 - `src/detected_target_candidate_node.cpp`：订阅检测结果、depth image 和 camera info，发布检测框驱动的三维候选点。
 - `src/mock_detector_node.cpp`：发布可配置 mock 检测框，用于无模型验证阶段 9 链路。
-- `scripts/edgepick_yolo_detector_node.py`：读取真实相机图像并发布厂商 YOLO 检测结果，保留给垃圾分类模型。
-- `scripts/edgepick_coco_detector_node.py`：读取真实相机图像并发布 COCO 检测结果，当前用于橘子目标。
+- `scripts/edgepick_yolo_detector_node.py`：读取真实相机图像并发布部署模型的检测结果；模型必须包含黄色方块类别。
+- 方块检测模型：由部署参数显式提供，不能使用没有方块类别的标准 COCO 权重。
 - `src/mock_rgbd_source_node.cpp`：发布固定 depth image 和 camera info，用于阶段 13 rehearsal。
 - `src/perception_metrics_node.cpp`：旁路发布感知链路延迟、稳定性和事件计数。
 - `src/target_frame_transform_node.cpp`：把相机坐标目标点转换到机器人规划 frame。
@@ -51,7 +51,7 @@ ros2 run edgepick_perception edgepick_yolo_detector_node.py
 ros2 run edgepick_perception edgepick_detection_viewer_node.py
 ```
 
-默认使用 depth 图像中心点作为临时目标像素。后续 Stage 9 会由检测/分割结果提供目标像素。
+默认使用 depth 图像中心点作为临时目标像素。独立诊断 launch 只用于检查消息契约；完整 MuJoCo/real 链路由 `edgepick_system.launch.py` 统一编排。
 
 ## 阶段记录
 
@@ -111,14 +111,14 @@ ros2 run edgepick_perception edgepick_detection_viewer_node.py
 
 ### 阶段 18：真实目标检测桥接
 
-当前阶段：新增 `scripts/edgepick_yolo_detector_node.py` 和 `scripts/edgepick_coco_detector_node.py`，分别承接厂商垃圾分类 YOLO 和橘子目标 COCO 检测，再由 `edgepick_detected_target_candidate_node` 继续做筛选和 RGB-D 投影。
+当前阶段：保留厂商 YOLO 作为独立参考；方块模型由部署参数显式提供，再由 `edgepick_detected_target_candidate_node` 做筛选和 RGB-D 投影。
 
-完成内容：YOLO 分支继续读取厂商 `best.engine`；COCO 分支读取本机 `frozen_inference_graph.pb` 和 `object_detection_coco.txt`，默认筛选 `orange`。两条分支都按框发布 `class_id`、`label`、`score`、中心像素和框尺寸；下游仍保持阶段 9 的检测选择契约不变。
+完成内容：检测结果按框发布 `class_id`、`label`、`score`、中心像素和框尺寸；下游仍保持检测选择契约不变。标准 COCO 权重不作为方块模型。
 
-结构反思：目标检测必须跟任务对象对齐。垃圾分类模型可以保留作参考，但橘子抓取链路应走 COCO 橘子入口，避免把任务语义和模型语义混在一起。
+结构反思：目标检测必须跟任务对象对齐。方块抓取链路必须使用包含方块类别的专用模型，避免把任务语义和模型语义混在一起。
 
-验证记录：2026-08-22 该包构建通过；`ros2 pkg executables edgepick_perception` 识别到 `edgepick_yolo_detector_node.py` 和 `edgepick_coco_detector_node.py`；`edgepick_bringup/edgepick_orange_detection.launch.py --show-args` 成功展开橘子检测参数。待在真实 Jetson 上接相机后补充 `/edgepick/perception/detections` 实测。
+验证记录：检测候选点和 Mock 链路可独立验证；方块专用模型、RGB-D 注册和真实相机输出待阶段 0 数据集完成后补测。
 
 ## 下一步目标
 
-阶段 20：先把橘子 perception 验稳，再继续往任务/抓取联调推进。
+阶段 20：先把方块 perception 验稳，再继续往任务/抓取联调推进。

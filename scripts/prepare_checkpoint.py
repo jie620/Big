@@ -8,7 +8,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"src/edgepick_safe"))
-from edgepick_safe.contract import JOINTS, checkpoint_contract
+from edgepick_safe.contract import CHUNK_SIZE, IMAGE_SHAPE, JOINTS, N_ACTION_STEPS, VISUALS, checkpoint_contract
 parser=argparse.ArgumentParser()
 parser.add_argument("checkpoint",type=Path)
 parser.add_argument("--absolute-ros-radians",action="store_true",required=True,
@@ -30,7 +30,20 @@ try:
     shutil.copytree(vlm,output/"vlm")
     config["vlm_model_name"]=str(output/"vlm")
     (output/"config.json").write_text(json.dumps(config,indent=2)+"\n")
-    manifest={"joint_names":JOINTS,"action_units":"radian","action_mode":"absolute_joint_position"}
+    manifest={
+        "joint_names":JOINTS,
+        "action_units":"radian",
+        "action_mode":"absolute_joint_position",
+        "object":"cube",
+        "visual_inputs":VISUALS,
+        "image_shape":IMAGE_SHAPE,
+        "depth_encoding":"uint8 grayscale repeated to RGB for SmolVLA; source depth is float32 meters",
+        "depth_max_m":1.5,
+        "observation":"registered RGB-D; joint positions in ROS radians, same camera viewpoint as training",
+        "chunk_size":CHUNK_SIZE,
+        "n_action_steps":N_ACTION_STEPS,
+        "execution":"execute the first predicted absolute joint position, then reacquire RGB-D and replan",
+    }
     (output/"edgepick_contract.json").write_text(json.dumps(manifest,indent=2)+"\n")
     checkpoint_contract(output)
 except Exception:

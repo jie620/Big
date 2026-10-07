@@ -2,5 +2,13 @@
   "joint_names": ["Arm1_Joint", "Arm2_Joint", "Arm3_Joint", "Arm4_Joint", "Arm5_Joint", "grip_joint"],
   "action_units": "radian",
   "action_mode": "absolute_joint_position",
-  "observation": "registered RGB; joint positions in ROS radians, same camera viewpoint as training"
+  "object": "cube",
+  "visual_inputs": ["observation.image", "observation.images.depth"],
+  "image_shape": [3, 240, 320],
+  "depth_encoding": "uint8 grayscale repeated to RGB for SmolVLA; source depth is float32 meters",
+  "depth_max_m": 1.5,
+  "observation": "registered RGB-D; joint positions in ROS radians, same camera viewpoint as training",
+  "chunk_size": 10,
+  "n_action_steps": 1,
+  "execution": "execute the first predicted absolute joint position, then reacquire RGB-D and replan"
 }

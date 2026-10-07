@@ -103,7 +103,6 @@ install(
 )
 install(
   PROGRAMS
-    scripts/edgepick_coco_detector_node.py
     scripts/edgepick_detection_viewer_node.py
     scripts/edgepick_yolo_detector_node.py
   DESTINATION lib/${PROJECT_NAME}

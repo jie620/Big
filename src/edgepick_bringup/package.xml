@@ -17,6 +17,7 @@
   <exec_depend>edgepick_hardware</exec_depend>
   <exec_depend>edgepick_interfaces</exec_depend>
   <exec_depend>edgepick_perception</exec_depend>
+  <exec_depend>edgepick_safe</exec_depend>
   <exec_depend>edgepick_task</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>
   <exec_depend>joint_trajectory_controller</exec_depend>

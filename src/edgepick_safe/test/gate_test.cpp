@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "edgepick_safe/gate.hpp"
+#include "edgepick_safe/placement.hpp"
 using edgepick_safe::Gate;
 Gate ready() { Gate g; g.armed=true; g.estop=false; g.estop_at=g.joint_at=g.target_at=g.cloud_at=g.scene_at=g.policy_at=10; return g; }
 TEST(Gate, StartupClosed) { Gate g; EXPECT_EQ(g.reason(10), "emergency_stop"); }
@@ -22,3 +23,9 @@ TEST(Gate, EachWatchdog) {
 }
 TEST(Gate, FaultDoesNotAutoResume) { auto g=ready(); g.stop(); g.estop=false; EXPECT_EQ(g.reason(10.1),"latched_fault"); }
 TEST(Gate, ClockRollback) { EXPECT_FALSE(edgepick_safe::fresh(9,10,2)); }
+TEST(Placement, TargetFootprintCoverage) {
+  EXPECT_DOUBLE_EQ(edgepick_safe::target_footprint_coverage(0,0,0.03,0,0,0.05), 1.0);
+  EXPECT_NEAR(edgepick_safe::target_footprint_coverage(0.025,0,0.03,0,0,0.05), 0.5, 1e-12);
+  EXPECT_LT(edgepick_safe::target_footprint_coverage(0.0251,0,0.03,0,0,0.05), 0.5);
+  EXPECT_DOUBLE_EQ(edgepick_safe::target_footprint_coverage(0,0,0,0,0,0.05), 0.0);
+}

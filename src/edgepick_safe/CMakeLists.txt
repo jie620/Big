@@ -13,7 +13,7 @@ ament_target_dependencies(safety_executor rclcpp edgepick_interfaces sensor_msgs
 ament_python_install_package(${PROJECT_NAME})
 install(TARGETS safety_executor DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/policy_node scripts/perception_node scripts/mock_inputs scripts/mujoco_backend DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_cmake_pytest REQUIRED)

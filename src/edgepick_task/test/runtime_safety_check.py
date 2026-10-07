@@ -10,7 +10,6 @@ import time
 import uuid
 
 import rclpy
-from geometry_msgs.msg import PointStamped
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from std_msgs.msg import String
 
@@ -46,59 +45,6 @@ def wait(node, predicate, timeout=5):
         if predicate():
             return True
     return False
-
-
-def executor_check(node, mode):
-    prefix = '/risk_' + uuid.uuid4().hex
-    state = node.create_publisher(String, prefix + '/state',
-        QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
-    target = node.create_publisher(PointStamped, prefix + '/target', 10)
-    events = []
-    subscription = node.create_subscription(String, prefix + '/event',
-        lambda msg: events.append(msg.data), 10)
-    parameters = dict(use_real_i2c='false', use_kinematics_service='false',
-        require_startup_pose_ready='false', tracking_enabled=str(mode == 'duplicate').lower(),
-        target_wait_sec='4.0', state_transition_wait_sec='1.5',
-        tracking_motion_time_ms=20, pregrasp_motion_time_ms=1000,
-        target_point_topic=prefix + '/target', state_topic=prefix + '/state',
-        event_topic=prefix + '/event')
-    with process('orange_grasp_executor_node', parameters) as (child, output):
-        assert wait(node, lambda: state.get_subscription_count() and target.get_subscription_count()), output()
-        point = PointStamped()
-        point.header.frame_id = 'camera_color_optical_frame'
-        point.header.stamp = node.get_clock().now().to_msg()
-        point.point.z = 0.5
-        if mode == 'stale':
-            point.header.stamp.sec -= 5
-        if mode == 'wrong_frame':
-            point.header.frame_id = 'base_link'
-        state.publish(String(data='planning'))
-        target.publish(point)
-        if mode in ('cancel', 'success'):
-            assert wait(node, lambda: 'plan_succeeded' in events), output()
-            state.publish(String(data='executing'))
-            assert wait(node, lambda: "Sending direct orange grasp step 'pregrasp/open'" in output()), output()
-            if mode == 'cancel':
-                state.publish(String(data='canceled'))
-                assert wait(node, lambda: child.poll() is not None, 1), output()
-                assert child.returncode != 0
-                assert "Sending direct orange grasp step 'descend'" not in output(), output()
-                assert 'execution_succeeded' not in events, events
-            else:
-                assert wait(node, lambda: 'execution_succeeded' in events, 8), output()
-                state.publish(String(data='verifying'))
-                assert wait(node, lambda: 'verification_succeeded' in events), output()
-                state.publish(String(data='succeeded'))
-                assert wait(node, lambda: child.poll() is not None, 6), output()
-                assert child.returncode == 0, output()
-        else:
-            assert wait(node, lambda: child.poll() is not None, 6), output()
-            assert child.returncode != 0, output()
-            assert 'plan_succeeded' not in events, output()
-            assert 'Sending direct orange grasp step' not in output(), output()
-    node.destroy_subscription(subscription)
-    node.destroy_publisher(state)
-    node.destroy_publisher(target)
 
 
 def adapter_check(node):
@@ -148,32 +94,15 @@ def negative_retry_check(node):
         node.destroy_publisher(event)
 
 
-def startup_check():
-    with process('startup_pose_sequence_node', dict(use_real_i2c='false',
-            zero_motion_time_ms=3000)) as (child, output):
-        end = time.monotonic() + 5
-        while time.monotonic() < end and 'Sending startup zero/home' not in output():
-            time.sleep(0.02)
-        assert 'Sending startup zero/home' in output(), output()
-        child.send_signal(signal.SIGINT)
-        assert child.wait(timeout=3) != 0, output()
-        assert 'Sending startup fixed restore' not in output(), output()
-
-
 def main():
     os.environ.setdefault('ROS_LOG_DIR', '/tmp/edgepick_safety_ros_logs')
     rclpy.init()
     node = rclpy.create_node('edgepick_safety_check')
     try:
-        for mode in ('cancel', 'stale', 'wrong_frame', 'duplicate', 'success'):
-            executor_check(node, mode)
-            print(f'PASS: {mode}', flush=True)
         adapter_check(node)
         print('PASS: real adapter refuses fake success', flush=True)
         negative_retry_check(node)
         print('PASS: negative retry budget', flush=True)
-        startup_check()
-        print('PASS: startup interruption', flush=True)
     finally:
         node.destroy_node()
         rclpy.shutdown()

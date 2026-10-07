@@ -48,3 +48,44 @@
 - Investigation/optimization: Removed the old VLA direct-trajectory publisher. Added strict model contract, RGB-D obstacle/target updates, destination recheck, collision-aware payload, watchdogs, fault latch, MuJoCo action backend and detector compression/export/metrics scripts. Cached mesh self-filter bodies after a dynamic-obstacle test exposed seconds of scene-update delay. Real feedback loss now blocks writes immediately and persistent failures abort control.
 - Result: Seven ROS packages built; safe-package C++/Python checks and affected hardware/bringup tests passed; 10 isolated ROS Mock checks passed including cancellation during execution. CPU pruning smoke test removed 7.70% of parameters at the tested setting, and distillation gradient / MuJoCo geometry-step checks passed. Big/.venv-vla imported all model dependencies and passed the MuJoCo ROS trajectory/cancellation check. These are not mAP, final size reduction or task success-rate measurements.
 - Next: User supplies the final checkpoint; validate model rollout, RGB-D registration and extrinsics before real-hardware commissioning. No physical motion or real grasp was tested in this work.
+
+## 2026-09-30 - stage 0 cube RGB-D contract cleanup
+- Purpose: Remove the retired fruit-specific path and align the project with the cube RGB-D avoidance task.
+- Investigation/optimization: Deleted retired launch, executor, dataset, validation-script and model artifacts; removed stale tests/docs; removed the standard COCO bridge because it has no cube class. Enforced two visual features, six-state/six-action SmolVLA, absolute ROS radians, `chunk_size=10`, and `n_action_steps=1` in the checkpoint manifest and loader.
+- Result: Non-vendor Big sources contain no fruit-specific references. Contract tests pass (2 passed), AST syntax checks pass, and `git diff --check` passes. No training, ROS runtime, I2C, or physical-arm validation was run.
+- Next: Generate RGB-D cube MuJoCo data, train a checkpoint with the declared manifest, then validate mock/MuJoCo rollout before any real-camera or hardware work.
+
+## 2026-09-30 - MuJoCo RGB-D depth scale and cube visual cleanup
+- Purpose: Prevent invalid depth values from entering the cube RGB-D dataset and ROS simulation backend.
+- Investigation/optimization: MuJoCo 3.12 depth rendering returned the far clipping distance (~998.65 m with the current scene), while the policy contract expects metric depth bounded to 1.5 m. Clipped/finite conversion was added to the collector and MuJoCo ROS backend; the avoidance scene now uses an explicit cube material and cyan visibility mask.
+- Result: Scene physics check and Python syntax checks passed. The local NVIDIA/EGL context still returns blank buffers or stalls because `/dev/nvhost*` and the NVIDIA driver are unavailable; no new dataset or training run was started. ROS tests were not collected from the non-ROS shell.
+- Next: Restore the Jetson NVIDIA/EGL runtime, run the 1-episode render probe, then collect and inspect successful RGB-D episodes before conversion.
+
+## 2026-09-30 - RGB-D backend regression checks
+- Purpose: Re-run the affected Big tests with the ROS 2 environment initialized.
+- Result: `edgepick_safe` Python tests passed 4/4 and Safety Gate C++ tests passed 7/7. The full collector remains unrun because the local EGL/NVIDIA context is unavailable.
+- Next: After GPU recovery, run the one-episode probe, then collect the declared 6000 successful cube episodes.
+
+## 2026-10-07 - canonical cube runtime cleanup
+- Purpose: Make Big a cube RGB-D/SmolVLA project with one real-machine route and no retired fruit/VLA entry points.
+- Investigation/optimization: Consolidated Mock, MuJoCo and real I2C startup under `edgepick_system.launch.py`; removed old direct-I2C, MoveIt validation, fruit executor, duplicate VLA package and retired launch/docs/model artifacts; required checkpoint, cube detector and registered-depth confirmation for MuJoCo/real; removed stale generated build/install artifacts; moved Safety Gate worker joining outside its mutex to avoid replan deadlock.
+- Result: Six current ROS packages build successfully; package tests report 0 errors, 0 failures and 0 skipped; current-project Mock acceptance passed 10 checks including action completion, replay, estop, target/depth/policy timeout, planning failure and execution-time collision cancellation. DDS UDP permission warnings are sandbox-only; no physical arm motion, final model rollout, camera extrinsic or RGB-D registration was validated.
+- Next: Train/prepare the final cube RGB-D checkpoint, run the MuJoCo route with a real YOLO cube model, then validate camera registration, extrinsics and hardware under the single `mode:=real` entry.
+
+## 2026-10-07 - canonical avoidance scene and 50 percent placement check
+- Purpose: Remove the remaining mismatch between Big's default MuJoCo scene, the cube dataset scene and the requested placement rule.
+- Investigation/optimization: Updated Big's scene to a 3 cm yellow cube, two 3 x 3 x 6 cm green/blue static blockers and a 5 cm red place zone; preserved the wrist-camera position/FOV and the confirmed 10 degree downward optical-axis tilt. Added a tested footprint-overlap function and made Safety Gate require at least 0.5 target-area coverage after release. Synchronized destination defaults and perception review footprint parameters, removing Safety Gate-only parameters from the perception YAML section.
+- Result: `simulation/check_scene.py`, Python syntax checks, the isolated `edgepick_safe` build, all 3 package tests and the 10-check Mock safety acceptance passed. The MuJoCo backend loaded the updated XML and ran until the sandbox timeout; only DDS/EGL permission warnings were reported.
+- Next: Run a one-episode rendered MuJoCo probe with the final cube detector/checkpoint, then inspect RGB-D observations and placement coverage before full training or `mode:=real`.
+
+## 2026-10-07 - asynchronous RGB-D and VLA runtime path
+- Purpose: Reduce sensor callback blocking and stale-action risk without changing the trained cube RGB-D model contract or collecting data again.
+- Investigation/optimization: Added bounded RGB/depth pairing, single-worker YOLO processing, latest-only SmolVLA inference, cached image conversion, GPU-side tensor transfer without depth channel copies, stale-frame invalidation, optional CUDA AMP, and detector device/FP16 controls. Added CUDA-synchronized detector timing and read-only ROS runtime profiling.
+- Result: Isolated `edgepick_safe` build and CTest 3/3 passed; focused perception/policy tests passed 8/8, bringup configuration tests passed 14/14, scene checks and launch argument inspection passed. Defaults remain FP32 for checkpoint parity, while Jetson CUDA/AMP settings are explicit and measurable. Physical camera registration, detector latency and hardware motion remain unverified.
+- Next: Build the isolated package, run the Mock safety suite, then profile a rendered MuJoCo or real-camera session before enabling AMP or changing detector precision.
+
+## 2026-10-07 - cube best.pt checkpoint integration
+- Purpose: Connect the user-provided `Edge_AI/best.pt` cube policy to Big without retraining or recollecting data.
+- Investigation/optimization: Converted the Windows-path PyTorch snapshot to `models/vla_cube_best/model.safetensors` with an explicit RGB-only SmolVLA contract; verified checkpoint step 351000, validation loss 0.012969, 1875 episodes/241112 frames, six absolute ROS-radian state/action values, and matching normalization statistics. Separated feedback limits from policy-command limits so the trained gripper range is enforced at `[-1.25, 0]`.
+- Result: Big's vendor LeRobot loader loaded the converted checkpoint with `strict=True` on CPU and produced one finite six-joint action from a real dataset RGB frame/state. Registered depth remains mandatory for perception/Safety Gate and is not passed to this RGB-only policy. No camera, detector, GPU or physical-arm success is claimed.
+- Next: provide a cube YOLO detector path, then run the MuJoCo route with CUDA restored and inspect proposal-to-Safety-Gate behavior before any hardware run.

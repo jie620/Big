@@ -23,9 +23,9 @@ EdgePick 的自定义 ROS 2 接口包。阶段 9 先加入目标检测结果消�
 
 ### 阶段 18：接口继续稳定复用
 
-当前阶段：橘子检测链路继续复用 `TargetDetection` 和 `TargetDetectionArray`，不新增接口消息。
+当前阶段：方块检测链路继续复用 `TargetDetection` 和 `TargetDetectionArray`，不新增接口消息。
 
-完成内容：COCO 橘子 detector 直接发布现有检测消息，`detected_target_candidate_node` 继续吃同一条 `/edgepick/perception/detections` 约定。
+完成内容：方块 detector 直接发布现有检测消息，`detected_target_candidate_node` 继续吃同一条 `/edgepick/perception/detections` 约定；具体模型由阶段 0 的显式模型参数提供。
 
 结构反思：接口包的价值在于稳定。只要二维检测框语义没变，就不该为了换模型或换类别新增消息字段。
 

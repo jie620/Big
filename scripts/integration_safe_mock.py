@@ -22,7 +22,7 @@ from edgepick_interfaces.msg import VLAAction
 JOINTS=[f"Arm{i}_Joint" for i in range(1,6)]+["grip_joint"]
 OUTPUT=Path(os.environ.get("EDGEPICK_TEST_OUTPUT","/tmp/edgepick_safe_acceptance"));OUTPUT.mkdir(parents=True,exist_ok=True)
 log=(OUTPUT/"launch.log").open("w")
-process=subprocess.Popen(["ros2","launch","edgepick_safe","safe_system.launch.py","mode:=mock","mock_inputs:=false"],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+process=subprocess.Popen(["ros2","launch","edgepick_bringup","edgepick_system.launch.py","mode:=mock","mock_inputs:=false"],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
 rclpy.init();node=Node("safe_mock_acceptance")
 pubs={"target":node.create_publisher(PointStamped,"/edgepick/safe/target",10),
       "scene":node.create_publisher(Header,"/edgepick/safe/scene_applied",10),

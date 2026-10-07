@@ -1,28 +1,110 @@
 #!/usr/bin/env python3
-"""Measure accuracy, artifact bytes, latency and CUDA memory; never invent resume metrics."""
+"""Measure detector accuracy, latency components and CUDA memory.
+
+The timing loop synchronizes CUDA before and after each prediction. This keeps
+the report useful on Jetson, where an asynchronous TensorRT enqueue otherwise
+looks much faster than the work that actually blocks the next ROS callback.
+"""
+
 import argparse
 import json
-from pathlib import Path
 import statistics
 import time
+from pathlib import Path
 
-p=argparse.ArgumentParser();p.add_argument("model");p.add_argument("--data",required=True);p.add_argument("--image",required=True)
-p.add_argument("--device",default="0");p.add_argument("--runs",type=int,default=100);p.add_argument("--output",type=Path,required=True)
-a=p.parse_args()
-if a.runs<5:p.error("--runs must be >= 5")
+
+def percentile(values: list[float], fraction: float) -> float:
+    """Return a nearest-rank percentile without requiring NumPy."""
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, int(fraction * (len(ordered) - 1))))
+    return ordered[index]
+
+
+def summary(values: list[float]) -> dict[str, float]:
+    return {
+        "p50": statistics.median(values),
+        "p95": percentile(values, 0.95),
+        "p99": percentile(values, 0.99),
+        "min": min(values),
+        "max": max(values),
+    }
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("model")
+parser.add_argument("--data", required=True)
+parser.add_argument("--image", required=True)
+parser.add_argument("--device", default="0")
+parser.add_argument("--runs", type=int, default=100)
+parser.add_argument("--warmup", type=int, default=10)
+parser.add_argument("--output", type=Path, required=True)
+args = parser.parse_args()
+if args.runs < 5:
+    parser.error("--runs must be >= 5")
+if args.warmup < 0:
+    parser.error("--warmup must be >= 0")
+
 import torch
 from ultralytics import YOLO
-m=YOLO(a.model,task="detect");validation=m.val(data=a.data,device=a.device,verbose=False)
-for _ in range(10):m.predict(a.image,device=a.device,verbose=False)
-if torch.cuda.is_available():torch.cuda.synchronize();torch.cuda.reset_peak_memory_stats()
-latencies=[]
-for _ in range(a.runs):
-    start=time.perf_counter();m.predict(a.image,device=a.device,verbose=False)
-    if torch.cuda.is_available():torch.cuda.synchronize()
-    latencies.append((time.perf_counter()-start)*1000)
-report={"model":a.model,"data":a.data,"runs":a.runs,"map50":float(validation.box.map50),"map50_95":float(validation.box.map),
-        "artifact_bytes":Path(a.model).stat().st_size,"latency_ms_median":statistics.median(latencies),
-        "latency_ms_p95":sorted(latencies)[int(0.95*(len(latencies)-1))],
-        "torch_peak_allocated_bytes":torch.cuda.max_memory_allocated() if torch.cuda.is_available() else None,
-        "memory_scope":"PyTorch allocator only; TensorRT/unified-memory total requires tegrastats"}
-a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(report,indent=2)+"\n");print(json.dumps(report,indent=2))
+
+
+model = YOLO(args.model, task="detect")
+validation = model.val(data=args.data, device=args.device, verbose=False)
+for _ in range(args.warmup):
+    model.predict(args.image, device=args.device, verbose=False)
+if torch.cuda.is_available():
+    torch.cuda.synchronize()
+    torch.cuda.reset_peak_memory_stats()
+
+latencies: list[float] = []
+preprocess: list[float] = []
+inference: list[float] = []
+postprocess: list[float] = []
+for _ in range(args.runs):
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    start = time.perf_counter()
+    results = model.predict(args.image, device=args.device, verbose=False)
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    latencies.append((time.perf_counter() - start) * 1000)
+    # Ultralytics exposes component timings for both PyTorch and TensorRT
+    # backends. Keep missing values out rather than reporting fabricated zeroes.
+    if results:
+        speed = getattr(results[0], "speed", {}) or {}
+        for values, key in (
+            (preprocess, "preprocess"),
+            (inference, "inference"),
+            (postprocess, "postprocess"),
+        ):
+            value = speed.get(key)
+            if value is not None:
+                values.append(float(value))
+
+report = {
+    "model": args.model,
+    "data": args.data,
+    "runs": args.runs,
+    "warmup": args.warmup,
+    "map50": float(validation.box.map50),
+    "map50_95": float(validation.box.map),
+    "artifact_bytes": Path(args.model).stat().st_size,
+    # Keep the original keys for existing result consumers.
+    "latency_ms_median": statistics.median(latencies),
+    "latency_ms_p95": percentile(latencies, 0.95),
+    "latency_ms": summary(latencies),
+    "torch_peak_allocated_bytes": torch.cuda.max_memory_allocated()
+    if torch.cuda.is_available()
+    else None,
+    "memory_scope": "PyTorch allocator only; TensorRT/unified-memory total requires tegrastats",
+}
+if preprocess:
+    report["preprocess_ms"] = summary(preprocess)
+if inference:
+    report["inference_ms"] = summary(inference)
+if postprocess:
+    report["postprocess_ms"] = summary(postprocess)
+
+args.output.parent.mkdir(parents=True, exist_ok=True)
+args.output.write_text(json.dumps(report, indent=2) + "\n")
+print(json.dumps(report, indent=2))

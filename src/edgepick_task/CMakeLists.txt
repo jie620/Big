@@ -6,13 +6,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(control_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
-find_package(dofbot_pro_interface REQUIRED)
-find_package(edgepick_hardware REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
-find_package(moveit_ros_planning_interface REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -64,56 +60,6 @@ ament_target_dependencies(moveit_action_adapter_node
   std_msgs
 )
 
-add_executable(moveit_real_validation_node
-  src/moveit_real_validation_node.cpp
-)
-target_link_libraries(moveit_real_validation_node ${PROJECT_NAME})
-ament_target_dependencies(moveit_real_validation_node
-  moveit_ros_planning_interface
-  rclcpp
-)
-
-add_executable(moveit_zero_restore_validation_node
-  src/moveit_zero_restore_validation_node.cpp
-)
-target_link_libraries(moveit_zero_restore_validation_node ${PROJECT_NAME})
-ament_target_dependencies(moveit_zero_restore_validation_node
-  edgepick_hardware
-  moveit_ros_planning_interface
-  rclcpp
-)
-
-add_executable(orange_grasp_executor_node
-  src/orange_grasp_executor_node.cpp
-)
-target_link_libraries(orange_grasp_executor_node ${PROJECT_NAME})
-ament_target_dependencies(orange_grasp_executor_node
-  dofbot_pro_interface
-  edgepick_hardware
-  geometry_msgs
-  rclcpp
-  std_msgs
-)
-
-add_executable(startup_pose_sequence_node
-  src/startup_pose_sequence_node.cpp
-)
-target_link_libraries(startup_pose_sequence_node ${PROJECT_NAME})
-ament_target_dependencies(startup_pose_sequence_node
-  edgepick_hardware
-  rclcpp
-  std_msgs
-)
-
-add_executable(servo_pose_command_node
-  src/servo_pose_command_node.cpp
-)
-target_link_libraries(servo_pose_command_node ${PROJECT_NAME})
-ament_target_dependencies(servo_pose_command_node
-  edgepick_hardware
-  rclcpp
-)
-
 add_executable(grasp_target_builder_node
   src/grasp_target_builder_node.cpp
 )
@@ -139,11 +85,6 @@ install(
     task_node
     mock_task_driver_node
     moveit_action_adapter_node
-    moveit_real_validation_node
-    moveit_zero_restore_validation_node
-    orange_grasp_executor_node
-    startup_pose_sequence_node
-    servo_pose_command_node
     grasp_target_builder_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
@@ -167,8 +108,7 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_dependencies(
-  diagnostic_msgs dofbot_pro_interface edgepick_hardware geometry_msgs moveit_msgs
-  moveit_ros_planning_interface rclcpp rclcpp_action std_msgs
+  diagnostic_msgs geometry_msgs moveit_msgs rclcpp rclcpp_action std_msgs
 )
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
